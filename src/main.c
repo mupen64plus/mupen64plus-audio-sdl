@@ -154,6 +154,8 @@ static void InitializeSDL(void);
 
 static int critical_failure = 0;
 
+static int audioSync = 0;
+
 /* definitions of pointers to Core config functions */
 ptr_ConfigOpenSection      ConfigOpenSection = NULL;
 ptr_ConfigDeleteSection    ConfigDeleteSection = NULL;
@@ -301,6 +303,7 @@ EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Con
     ConfigSetDefaultInt(l_ConfigAudio, "VOLUME_CONTROL_TYPE",   VOLUME_TYPE_SDL,       "Volume control type: 1 = SDL (only affects Mupen64Plus output)  2 = OSS mixer (adjusts master PC volume)");
     ConfigSetDefaultInt(l_ConfigAudio, "VOLUME_ADJUST",         5,                     "Percentage change each time the volume is increased or decreased");
     ConfigSetDefaultInt(l_ConfigAudio, "VOLUME_DEFAULT",        80,                    "Default volume when a game is started.  Only used if VOLUME_CONTROL_TYPE is 1");
+    ConfigSetDefaultBool(l_ConfigAudio, "AUDIO_SYNC", 0,                               "Synchronize Video/Audio");
 
     if (bSaveConfig && ConfigAPIVersion >= 0x020100)
         ConfigSaveSection("Audio-SDL");
@@ -458,7 +461,7 @@ EXPORT void CALL AiLenChanged( void )
        milliseconds ahead of our target buffer fullness level, then insert a delay now */
     DebugMessage(M64MSG_VERBOSE, "%03i New audio bytes: %i  Time to next callback: %i  Current/Expected buffer level: %i/%i",
                  CurrTime % 1000, LenReg, (int) (ExpectedTime - CurrTime), CurrLevel, ExpectedLevel);
-    if (ExpectedLevel >= PrimaryBufferTarget + OutputFreq / 100)
+    if (ExpectedLevel >= PrimaryBufferTarget + OutputFreq / 100 && audioSync)
     {
         unsigned int WaitTime = (ExpectedLevel - PrimaryBufferTarget) * 1000 / OutputFreq;
         DebugMessage(M64MSG_VERBOSE, "    AiLenChanged(): Waiting %ims", WaitTime);
@@ -754,6 +757,8 @@ static void InitializeAudio(int freq)
     /* Our callback function */
     desired->callback = my_audio_callback;
     desired->userdata = NULL;
+
+    audioSync = ConfigGetParamBool(l_ConfigAudio, "AUDIO_SYNC");
 
     /* Open the audio device */
     l_PausedForSync = 1;
