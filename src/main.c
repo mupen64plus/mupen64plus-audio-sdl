@@ -29,12 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef USE_SRC
-#include <samplerate.h>
-#endif
-#ifdef USE_SPEEX
-#include <speex/speex_resampler.h>
-#endif
+#include "resamplers/resamplers.h"
 
 #ifdef USE_AUDIORESOURCE
 #include <audioresource.h>
@@ -93,16 +88,6 @@ static audioresource_t *l_audioresource = NULL;
 static int l_audioresource_acquired = 0;
 #endif
 
-enum resampler_type {
-	RESAMPLER_TRIVIAL,
-#ifdef USE_SRC
-	RESAMPLER_SRC,
-#endif
-#ifdef USE_SPEEX
-	RESAMPLER_SPEEX,
-#endif
-};
-
 /* Read header for type definition */
 static AUDIO_INFO AudioInfo;
 /* The hardware specifications we are using */
@@ -128,10 +113,6 @@ static unsigned int PrimaryBufferSize = PRIMARY_BUFFER_SIZE;
 static unsigned int PrimaryBufferTarget = PRIMARY_BUFFER_TARGET;
 // Size of Secondary audio buffer in output samples
 static unsigned int SecondaryBufferSize = SECONDARY_BUFFER_SIZE;
-// Resample type
-static enum resampler_type Resample = RESAMPLER_TRIVIAL;
-// Resampler specific quality
-static int ResampleQuality = 3;
 // volume to scale the audio by, range of 0..100
 // if muted, this holds the volume when not muted
 static int VolPercent = 80;
@@ -145,6 +126,11 @@ static int VolIsMuted = 0;
 static int VolumeControlType = VOLUME_TYPE_SDL;
 
 static int OutputFreq;
+
+/* resampler */
+static void* l_resampler = NULL;
+static const struct resampler_interface* l_iresampler = NULL;
+
 
 // Prototype of local functions
 static void my_audio_callback(void *userdata, unsigned char *stream, int len);
@@ -173,7 +159,7 @@ ptr_ConfigGetParamBool     ConfigGetParamBool = NULL;
 ptr_ConfigGetParamString   ConfigGetParamString = NULL;
 
 /* Global functions */
-static void DebugMessage(int level, const char *message, ...)
+void DebugMessage(int level, const char *message, ...)
 {
   char msgbuf[1024];
   va_list args;
@@ -292,14 +278,7 @@ EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Con
     ConfigSetDefaultInt(l_ConfigAudio, "PRIMARY_BUFFER_SIZE",   PRIMARY_BUFFER_SIZE,   "Size of primary buffer in output samples. This is where audio is loaded after it's extracted from n64's memory.");
     ConfigSetDefaultInt(l_ConfigAudio, "PRIMARY_BUFFER_TARGET", PRIMARY_BUFFER_TARGET, "Fullness level target for Primary audio buffer, in equivalent output samples. This value must be larger than the SECONDARY_BUFFER_SIZE. Decreasing this value will reduce audio latency but requires a faster PC to avoid choppiness. Increasing this will increase audio latency but reduce the chance of drop-outs.");
     ConfigSetDefaultInt(l_ConfigAudio, "SECONDARY_BUFFER_SIZE", SECONDARY_BUFFER_SIZE, "Size of secondary buffer in output samples. This is SDL's hardware buffer. The SDL documentation states that this should be a power of two between 512 and 8192.");
-#if defined(USE_SPEEX)
-    #define RESAMPLER "speex-fixed-4"
-#elif defined(USE_SRC)
-    #define RESAMPLER "src-sinc-medium-quality"
-#else
-    #define RESAMPLER "trivial"
-#endif
-    ConfigSetDefaultString(l_ConfigAudio, "RESAMPLE",           RESAMPLER,             "Audio resampling algorithm. src-sinc-best-quality, src-sinc-medium-quality, src-sinc-fastest, src-zero-order-hold, src-linear, speex-fixed-{10-0}, trivial");
+    ConfigSetDefaultString(l_ConfigAudio, "RESAMPLE",           DEFAULT_RESAMPLER,             "Audio resampling algorithm. src-sinc-best-quality, src-sinc-medium-quality, src-sinc-fastest, src-zero-order-hold, src-linear, speex-fixed-{10-0}, trivial");
     ConfigSetDefaultInt(l_ConfigAudio, "VOLUME_CONTROL_TYPE",   VOLUME_TYPE_SDL,       "Volume control type: 1 = SDL (only affects Mupen64Plus output)  2 = OSS mixer (adjusts master PC volume)");
     ConfigSetDefaultInt(l_ConfigAudio, "VOLUME_ADJUST",         5,                     "Percentage change each time the volume is increased or decreased");
     ConfigSetDefaultInt(l_ConfigAudio, "VOLUME_DEFAULT",        80,                    "Default volume when a game is started.  Only used if VOLUME_CONTROL_TYPE is 1");
@@ -499,125 +478,6 @@ EXPORT int CALL InitiateAudio( AUDIO_INFO Audio_Info )
 
 static int underrun_count = 0;
 
-#ifdef USE_SRC
-static float *_src = NULL;
-static unsigned int _src_len = 0;
-static float *_dest = NULL;
-static unsigned int _dest_len = 0;
-static int error;
-static SRC_STATE *src_state;
-static SRC_DATA src_data;
-#endif
-#ifdef USE_SPEEX
-SpeexResamplerState* spx_state = NULL;
-static int error;
-#endif
-
-static int resample(unsigned char *input, int input_avail, int oldsamplerate, unsigned char *output, int output_needed, int newsamplerate)
-{
-    int *psrc = (int*)input;
-    int *pdest = (int*)output;
-    int i = 0, j = 0;
-
-#ifdef USE_SPEEX
-    spx_uint32_t in_len, out_len;
-    if(Resample == RESAMPLER_SPEEX)
-    {
-        if(spx_state == NULL)
-        {
-            spx_state = speex_resampler_init(2, oldsamplerate, newsamplerate, ResampleQuality,  &error);
-            if(spx_state == NULL)
-            {
-                memset(output, 0, output_needed);
-                return 0;
-            }
-        }
-        speex_resampler_set_rate(spx_state, oldsamplerate, newsamplerate);
-        in_len = input_avail / 4;
-        out_len = output_needed / 4;
-
-        if ((error = speex_resampler_process_interleaved_int(spx_state, (const spx_int16_t *)input, &in_len, (spx_int16_t *)output, &out_len)))
-        {
-            memset(output, 0, output_needed);
-            return input_avail;  // number of bytes consumed
-        }
-        return in_len * 4;
-    }
-#endif
-#ifdef USE_SRC
-    if(Resample == RESAMPLER_SRC)
-    {
-        // the high quality resampler needs more input than the samplerate ratio would indicate to work properly
-        if (input_avail > output_needed * 3 / 2)
-            input_avail = output_needed * 3 / 2; // just to avoid too much short-float-short conversion time
-        if (_src_len < input_avail*2 && input_avail > 0)
-        {
-            if(_src) free(_src);
-            _src_len = input_avail*2;
-            _src = malloc(_src_len);
-        }
-        if (_dest_len < output_needed*2 && output_needed > 0)
-        {
-            if(_dest) free(_dest);
-            _dest_len = output_needed*2;
-            _dest = malloc(_dest_len);
-        }
-        memset(_src,0,_src_len);
-        memset(_dest,0,_dest_len);
-        if(src_state == NULL)
-        {
-            src_state = src_new (ResampleQuality, 2, &error);
-            if(src_state == NULL)
-            {
-                memset(output, 0, output_needed);
-                return 0;
-            }
-        }
-        src_short_to_float_array ((short *) input, _src, input_avail/2);
-        src_data.end_of_input = 0;
-        src_data.data_in = _src;
-        src_data.input_frames = input_avail/4;
-        src_data.src_ratio = (float) newsamplerate / oldsamplerate;
-        src_data.data_out = _dest;
-        src_data.output_frames = output_needed/4;
-        if ((error = src_process (src_state, &src_data)))
-        {
-            memset(output, 0, output_needed);
-            return input_avail;  // number of bytes consumed
-        }
-        src_float_to_short_array (_dest, (short *) output, output_needed/2);
-        return src_data.input_frames_used * 4;
-    }
-#endif
-    // RESAMPLE == TRIVIAL
-    if (newsamplerate >= oldsamplerate)
-    {
-        int sldf = oldsamplerate;
-        int const2 = 2*sldf;
-        int dldf = newsamplerate;
-        int const1 = const2 - 2*dldf;
-        int criteria = const2 - dldf;
-        for (i = 0; i < output_needed/4; i++)
-        {
-            pdest[i] = psrc[j];
-            if(criteria >= 0)
-            {
-                ++j;
-                criteria += const1;
-            }
-            else criteria += const2;
-        }
-        return j * 4; //number of bytes consumed
-    }
-    // newsamplerate < oldsamplerate, this only happens when speed_factor > 1
-    for (i = 0; i < output_needed/4; i++)
-    {
-        j = i * oldsamplerate / newsamplerate;
-        pdest[i] = psrc[j];
-    }
-    return j * 4; //number of bytes consumed
-}
-
 static void my_audio_callback(void *userdata, unsigned char *stream, int len)
 {
     int oldsamplerate, newsamplerate;
@@ -637,12 +497,12 @@ static void my_audio_callback(void *userdata, unsigned char *stream, int len)
 #if defined(HAS_OSS_SUPPORT)
         if (VolumeControlType == VOLUME_TYPE_OSS)
         {
-            input_used = resample(primaryBuffer, buffer_pos, oldsamplerate, stream, len, newsamplerate);
+            input_used = l_iresampler->resample(l_resampler, primaryBuffer, buffer_pos, oldsamplerate, stream, len, newsamplerate);
         }
         else
 #endif
         {
-            input_used = resample(primaryBuffer, buffer_pos, oldsamplerate, mixBuffer, len, newsamplerate);
+            input_used = l_iresampler->resample(l_resampler, primaryBuffer, buffer_pos, oldsamplerate, mixBuffer, len, newsamplerate);
             memset(stream, 0, len);
             SDL_MixAudio(stream, mixBuffer, len, VolSDL);
         }
@@ -661,6 +521,7 @@ static void my_audio_callback(void *userdata, unsigned char *stream, int len)
         memset(stream , 0, len);
     }
 }
+
 EXPORT int CALL RomOpen(void)
 {
     if (!l_PluginInit)
@@ -831,6 +692,13 @@ EXPORT void CALL RomClosed( void )
     SDL_PauseAudio(1);
     SDL_CloseAudio();
 
+    /* release resampler */
+    if (l_resampler != NULL) {
+        l_iresampler->release(l_resampler);
+        l_resampler = NULL;
+        l_iresampler = NULL;
+    }
+
     // Delete the buffer, as we are done producing sound
     if (primaryBuffer != NULL)
     {
@@ -882,73 +750,8 @@ static void ReadConfig(void)
     VolDelta = ConfigGetParamInt(l_ConfigAudio, "VOLUME_ADJUST");
     VolPercent = ConfigGetParamInt(l_ConfigAudio, "VOLUME_DEFAULT");
 
-    if (!resampler_id) {
-        Resample = RESAMPLER_TRIVIAL;
-	DebugMessage(M64MSG_WARNING, "Could not find RESAMPLE configuration; use trivial resampler");
-	return;
-    }
-    if (strcmp(resampler_id, "trivial") == 0) {
-        Resample = RESAMPLER_TRIVIAL;
-        return;
-    }
-#ifdef USE_SPEEX
-    if (strncmp(resampler_id, "speex-fixed-", strlen("speex-fixed-")) == 0) {
-        int i;
-        static const char *speex_quality[] = {
-            "speex-fixed-0",
-            "speex-fixed-1",
-            "speex-fixed-2",
-            "speex-fixed-3",
-            "speex-fixed-4",
-            "speex-fixed-5",
-            "speex-fixed-6",
-            "speex-fixed-7",
-            "speex-fixed-8",
-            "speex-fixed-9",
-            "speex-fixed-10",
-        };
-        Resample = RESAMPLER_SPEEX;
-        for (i = 0; i < sizeof(speex_quality) / sizeof(*speex_quality); i++) {
-            if (strcmp(speex_quality[i], resampler_id) == 0) {
-                ResampleQuality = i;
-                return;
-            }
-        }
-        DebugMessage(M64MSG_WARNING, "Unknown RESAMPLE configuration %s; use speex-fixed-4 resampler", resampler_id);
-        ResampleQuality = 4;
-        return;
-    }
-#endif
-#ifdef USE_SRC
-    if (strncmp(resampler_id, "src-", strlen("src-")) == 0) {
-        Resample = RESAMPLER_SRC;
-        if (strcmp(resampler_id, "src-sinc-best-quality") == 0) {
-            ResampleQuality = SRC_SINC_BEST_QUALITY;
-            return;
-        }
-        if (strcmp(resampler_id, "src-sinc-medium-quality") == 0) {
-            ResampleQuality = SRC_SINC_MEDIUM_QUALITY;
-            return;
-        }
-        if (strcmp(resampler_id, "src-sinc-fastest") == 0) {
-            ResampleQuality = SRC_SINC_FASTEST;
-            return;
-        }
-        if (strcmp(resampler_id, "src-zero-order-hold") == 0) {
-            ResampleQuality = SRC_ZERO_ORDER_HOLD;
-            return;
-        }
-        if (strcmp(resampler_id, "src-linear") == 0) {
-            ResampleQuality = SRC_LINEAR;
-            return;
-        }
-        DebugMessage(M64MSG_WARNING, "Unknown RESAMPLE configuration %s; use src-sinc-medium-quality resampler", resampler_id);
-        ResampleQuality = SRC_SINC_MEDIUM_QUALITY;
-        return;
-    }
-#endif
-    DebugMessage(M64MSG_WARNING, "Unknown RESAMPLE configuration %s; use trivial resampler", resampler_id);
-    Resample = RESAMPLER_TRIVIAL;
+    /* instanciate resampler */
+    l_iresampler = get_iresampler(resampler_id, &l_resampler);
 }
 
 // Returns the most recent ummuted volume level.
