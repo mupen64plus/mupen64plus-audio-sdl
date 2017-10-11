@@ -202,10 +202,10 @@ EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Con
                                    void (*DebugCallback)(void *, int, const char *))
 {
     ptr_CoreGetAPIVersions CoreAPIVersionFunc;
-    
+
     int ConfigAPIVersion, DebugAPIVersion, VidextAPIVersion, bSaveConfig;
     float fConfigParamsVersion = 0.0f;
-    
+
     if (l_PluginInit)
         return M64ERR_ALREADY_INIT;
 
@@ -220,7 +220,7 @@ EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Con
         DebugMessage(M64MSG_ERROR, "Core emulator broken; no CoreAPIVersionFunc() function found.");
         return M64ERR_INCOMPATIBLE;
     }
-    
+
     (*CoreAPIVersionFunc)(&ConfigAPIVersion, &DebugAPIVersion, &VidextAPIVersion, NULL);
     if ((ConfigAPIVersion & 0xffff0000) != (CONFIG_API_VERSION & 0xffff0000))
     {
@@ -362,7 +362,7 @@ EXPORT m64p_error CALL PluginGetVersion(m64p_plugin_type *PluginType, int *Plugi
 
     if (APIVersion != NULL)
         *APIVersion = AUDIO_PLUGIN_API_VERSION;
-    
+
     if (PluginNamePtr != NULL)
         *PluginNamePtr = "Mupen64Plus SDL Audio Plugin";
 
@@ -370,7 +370,7 @@ EXPORT m64p_error CALL PluginGetVersion(m64p_plugin_type *PluginType, int *Plugi
     {
         *Capabilities = 0;
     }
-                    
+
     return M64ERR_SUCCESS;
 }
 
@@ -720,7 +720,7 @@ static void InitializeAudio(int freq)
         SDL_PauseAudio(1);
         SDL_CloseAudio();
     }
-    else 
+    else
     {
         DebugMessage(M64MSG_VERBOSE, "InitializeAudio(): Initializing SDL Audio");
         DebugMessage(M64MSG_VERBOSE, "Primary buffer: %i output samples.", PrimaryBufferSize);
@@ -740,9 +740,9 @@ static void InitializeAudio(int freq)
     if(freq < 11025) OutputFreq = 11025;
     else if(freq < 22050) OutputFreq = 22050;
     else OutputFreq = 44100;
-    
+
     desired->freq = OutputFreq;
-    
+
     DebugMessage(M64MSG_VERBOSE, "Requesting frequency: %iHz.", desired->freq);
     /* 16-bit signed audio */
     desired->format=AUDIO_S16SYS;
@@ -826,7 +826,7 @@ EXPORT void CALL RomClosed( void )
    if (critical_failure == 1)
        return;
     DebugMessage(M64MSG_VERBOSE, "Cleaning up SDL sound plugin...");
-    
+
     // Shut down SDL Audio output
     SDL_PauseAudio(1);
     SDL_CloseAudio();
@@ -1026,7 +1026,7 @@ EXPORT void CALL VolumeSetLevel(int level)
     //if muted, unmute first
     VolIsMuted = 0;
 
-    // adjust volume 
+    // adjust volume
     VolPercent = level;
     if (VolPercent < 0)
         VolPercent = 0;
