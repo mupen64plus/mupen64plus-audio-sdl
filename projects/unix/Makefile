@@ -296,6 +296,7 @@ OBJDIR = _obj$(POSTFIX)
 
 # list of source files to compile
 SOURCE = \
+	$(SRCDIR)/circular_buffer.c \
 	$(SRCDIR)/main.c \
 	$(SRCDIR)/volume.c \
 	$(SRCDIR)/resamplers/resamplers.c \

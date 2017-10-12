@@ -29,7 +29,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "circular_buffer.h"
+#include "main.h"
+#include "osal_dynamiclib.h"
 #include "resamplers/resamplers.h"
+#include "volume.h"
 
 #ifdef USE_AUDIORESOURCE
 #include <audioresource.h>
@@ -41,9 +45,6 @@
 #include "m64p_config.h"
 #include "m64p_plugin.h"
 #include "m64p_types.h"
-#include "main.h"
-#include "osal_dynamiclib.h"
-#include "volume.h"
 
 /* Default start-time size of primary buffer (in equivalent output samples).
    This is the buffer where audio is loaded after it's extracted from n64's memory.
@@ -77,16 +78,9 @@
 #define VOLUME_TYPE_SDL     1
 #define VOLUME_TYPE_OSS     2
 
-struct prim_buffer
-{
-    void* data;
-    size_t size;
-    size_t head;
-};
-
 struct sdl_backend
 {
-    struct prim_buffer primary_buffer;
+    struct circular_buffer primary_buffer;
 
     /* Primary buffer size (in output samples) */
     size_t primary_buffer_size;
@@ -191,24 +185,26 @@ static void my_audio_callback(void* userdata, unsigned char* stream, int len)
 
     unsigned int newsamplerate = sdl_backend->output_frequency * 100 / sdl_backend->speed_factor;
     unsigned int oldsamplerate = sdl_backend->input_frequency;
+    size_t needed = (len * oldsamplerate) / newsamplerate;
+    size_t available;
+    size_t consumed;
 
-    if (sdl_backend->primary_buffer.head > (unsigned int) (len * oldsamplerate) / newsamplerate)
+    const void* src = cbuff_tail(&sdl_backend->primary_buffer, &available);
+    if ((available > 0) && (available >= needed))
     {
-        int input_used;
 #if defined(HAS_OSS_SUPPORT)
         if (VolumeControlType== VOLUME_TYPE_OSS)
         {
-            input_used = sdl_backend->iresampler->resample(sdl_backend->resampler, sdl_backend->primary_buffer.data, sdl_backend->primary_buffer.head, oldsamplerate, stream, len, newsamplerate);
+            consumed = sdl_backend->iresampler->resample(sdl_backend->resampler, src, available, oldsamplerate, stream, len, newsamplerate);
         }
         else
 #endif
         {
-            input_used = sdl_backend->iresampler->resample(sdl_backend->resampler, sdl_backend->primary_buffer.data, sdl_backend->primary_buffer.head, oldsamplerate, sdl_backend->mix_buffer, len, newsamplerate);
+            consumed = sdl_backend->iresampler->resample(sdl_backend->resampler, src, available, oldsamplerate, sdl_backend->mix_buffer, len, newsamplerate);
             memset(stream, 0, len);
             SDL_MixAudio(stream, sdl_backend->mix_buffer, len, VolSDL);
         }
-        memmove(sdl_backend->primary_buffer.data, &((unsigned char*)sdl_backend->primary_buffer.data)[input_used], sdl_backend->primary_buffer.head - input_used);
-        sdl_backend->primary_buffer.head -= input_used;
+        consume_cbuff_data(&sdl_backend->primary_buffer, consumed);
     }
     else
     {
@@ -223,15 +219,15 @@ static size_t new_primary_buffer_size(const struct sdl_backend* sdl_backend)
         (sdl_backend->output_frequency * 100);
 }
 
-static void resize_primary_buffer(struct prim_buffer* buffer, size_t new_size)
+static void resize_primary_buffer(struct circular_buffer* cbuff, size_t new_size)
 {
     /* only grows the buffer */
-    if (new_size > buffer->size) {
+    if (new_size > cbuff->size) {
         SDL_LockAudio();
-        buffer->data = realloc(buffer->data, new_size);
-        memset(buffer->data + buffer->size, 0, new_size - buffer->size);
+        cbuff->data = realloc(cbuff->data, new_size);
+        memset(cbuff->data + cbuff->size, 0, new_size - cbuff->size);
         SDL_UnlockAudio();
-        buffer->size = new_size;
+        cbuff->size = new_size;
     }
 }
 
@@ -415,7 +411,7 @@ static void release_sdl_backend(struct sdl_backend* sdl_backend)
     }
 
     /* release primary buffer */
-    free(sdl_backend->primary_buffer.data);
+    release_cbuff(&sdl_backend->primary_buffer);
 
     /* release mix buffer */
     free(sdl_backend->mix_buffer);
@@ -429,10 +425,13 @@ static void release_sdl_backend(struct sdl_backend* sdl_backend)
 
 static size_t estimate_level_at_next_audio_cb(struct sdl_backend* sdl_backend)
 {
+    size_t available;
     unsigned int now = SDL_GetTicks();
 
+    cbuff_tail(&sdl_backend->primary_buffer, &available);
+
     /* Start by calculating the current Primary buffer fullness in terms of output samples */
-    size_t expected_level = (size_t)(((int64_t)(sdl_backend->primary_buffer.head/N64_SAMPLE_BYTES) * sdl_backend->output_frequency * 100) / (sdl_backend->input_frequency * sdl_backend->speed_factor));
+    size_t expected_level = (size_t)(((int64_t)(available/N64_SAMPLE_BYTES) * sdl_backend->output_frequency * 100) / (sdl_backend->input_frequency * sdl_backend->speed_factor));
 
     /* Next, extrapolate to the buffer level at the expected time of the next audio callback, assuming that the
        buffer is filled at the same rate as the output frequency */
@@ -678,6 +677,7 @@ EXPORT void CALL AiDacrateChanged( int SystemType )
 
 EXPORT void CALL AiLenChanged( void )
 {
+    size_t available;
     struct sdl_backend* sdl_backend = l_sdl_backend;
 
     if (critical_failure == 1)
@@ -686,13 +686,12 @@ EXPORT void CALL AiLenChanged( void )
     if (!l_PluginInit)
         return;
 
+    void* dst = cbuff_head(&sdl_backend->primary_buffer, &available);
     size_t size = *AudioInfo.AI_LEN_REG;
 
-    if (sdl_backend->primary_buffer.head + size < sdl_backend->primary_buffer.size)
+    if (size <= available)
     {
-        unsigned int i;
         const unsigned char* src = AudioInfo.RDRAM + (*AudioInfo.AI_DRAM_ADDR_REG & 0xffffff);
-        unsigned char* dst = (unsigned char*)sdl_backend->primary_buffer.data + sdl_backend->primary_buffer.head;
 
         SDL_LockAudio();
 
@@ -700,6 +699,7 @@ EXPORT void CALL AiLenChanged( void )
             memcpy(dst, src, size);
         }
         else {
+            size_t i;
             for (i = 0 ; i < size ; i += 4 )
             {
                 memcpy(dst + i, src + i + 2, 2); /* Left */
@@ -709,7 +709,7 @@ EXPORT void CALL AiLenChanged( void )
 
         SDL_UnlockAudio();
 
-        sdl_backend->primary_buffer.head += (size + 3) & ~0x3;
+        produce_cbuff_data(&sdl_backend->primary_buffer, (size + 3) & ~0x3);
     }
     else
     {
