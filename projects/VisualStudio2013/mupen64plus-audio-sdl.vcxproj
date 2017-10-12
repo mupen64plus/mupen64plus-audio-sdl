@@ -165,12 +165,19 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\circular_buffer.c" />
     <ClCompile Include="..\..\src\main.c" />
     <ClCompile Include="..\..\src\osal_dynamiclib_win32.c" />
+    <ClCompile Include="..\..\src\sdl_backend.c" />
+    <ClCompile Include="..\..\src\resamplers\resamplers.c" />
+    <ClCompile Include="..\..\src\resamplers\trivial.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\src\circular_buffer.h" />
     <ClInclude Include="..\..\src\main.h" />
     <ClInclude Include="..\..\src\osal_dynamiclib.h" />
+    <ClInclude Include="..\..\src\sdl_backend.h" />
+    <ClInclude Include="..\..\src\resamplers\resamplers.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
