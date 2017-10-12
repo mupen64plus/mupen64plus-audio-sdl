@@ -298,6 +298,7 @@ OBJDIR = _obj$(POSTFIX)
 SOURCE = \
 	$(SRCDIR)/circular_buffer.c \
 	$(SRCDIR)/main.c \
+	$(SRCDIR)/sdl_backend.c \
 	$(SRCDIR)/volume.c \
 	$(SRCDIR)/resamplers/resamplers.c \
 	$(SRCDIR)/resamplers/trivial.c
