@@ -376,12 +376,64 @@ EXPORT void CALL AiDacrateChanged( int SystemType )
     InitializeAudio(f);
 }
 
+static size_t estimate_level_at_next_audio_cb()
+{
+    unsigned int now = SDL_GetTicks();
+
+    /* Start by calculating the current Primary buffer fullness in terms of output samples */
+    size_t expected_level = (size_t)(((int64_t)(buffer_pos/N64_SAMPLE_BYTES) * OutputFreq * 100) / (GameFreq * speed_factor));
+
+    /* Next, extrapolate to the buffer level at the expected time of the next audio callback, assuming that the
+       buffer is filled at the same rate as the output frequency */
+    unsigned int expected_next_cb_time = last_callback_ticks + ((1000 * SecondaryBufferSize) / OutputFreq);
+
+    if (now < expected_next_cb_time) {
+        expected_level += (expected_next_cb_time - now) * OutputFreq / 1000;
+    }
+
+    return expected_level;
+}
+
+static void synchronize_audio()
+{
+    enum { TOLERANCE_MS = 10 };
+
+    size_t expected_level = estimate_level_at_next_audio_cb();
+
+    /* If the expected value of the Primary Buffer Fullness at the time of the next audio callback is more than 10
+       milliseconds ahead of our target buffer fullness level, then insert a delay now */
+    if (audioSync && expected_level >= PrimaryBufferTarget + OutputFreq * TOLERANCE_MS / 1000)
+    {
+        /* Core is ahead of SDL audio thread,
+         * delay emulation to allow the SDL audio thread to catch up */
+        unsigned int wait_time = (expected_level - PrimaryBufferTarget) * 1000 / OutputFreq;
+
+        if (l_PausedForSync) { SDL_PauseAudio(0); }
+        l_PausedForSync = 0;
+
+        SDL_Delay(wait_time);
+    }
+    else if (expected_level < SecondaryBufferSize)
+    {
+        /* Core is behind SDL audio thread (predicting an underflow),
+         * pause the audio to let the Core catch up */
+        if (!l_PausedForSync) { SDL_PauseAudio(1); }
+        l_PausedForSync = 1;
+    }
+    else
+    {
+        /* Expected fullness is within tolerance,
+         * audio thread is running
+         */
+        if (l_PausedForSync) { SDL_PauseAudio(0); }
+        l_PausedForSync = 0;
+    }
+}
 
 EXPORT void CALL AiLenChanged( void )
 {
     unsigned int LenReg;
     unsigned char *p;
-    unsigned int CurrLevel, CurrTime, ExpectedLevel, ExpectedTime;
 
     if (critical_failure == 1)
         return;
@@ -426,45 +478,7 @@ EXPORT void CALL AiLenChanged( void )
         DebugMessage(M64MSG_WARNING, "AiLenChanged(): Audio buffer overflow.");
     }
 
-    /* Now we need to handle synchronization, by inserting time delay to keep the emulator running at the correct speed */
-    /* Start by calculating the current Primary buffer fullness in terms of output samples */
-    CurrLevel = (unsigned int) (((long long) (buffer_pos/N64_SAMPLE_BYTES) * OutputFreq * 100) / (GameFreq * speed_factor));
-    /* Next, extrapolate to the buffer level at the expected time of the next audio callback, assuming that the
-       buffer is filled at the same rate as the output frequency */
-    CurrTime = SDL_GetTicks();
-    ExpectedTime = last_callback_ticks + ((1000 * SecondaryBufferSize) / OutputFreq);
-    ExpectedLevel = CurrLevel;
-    if (CurrTime < ExpectedTime)
-        ExpectedLevel += (ExpectedTime - CurrTime) * OutputFreq / 1000;
-    /* If the expected value of the Primary Buffer Fullness at the time of the next audio callback is more than 10
-       milliseconds ahead of our target buffer fullness level, then insert a delay now */
-    DebugMessage(M64MSG_VERBOSE, "%03i New audio bytes: %i  Time to next callback: %i  Current/Expected buffer level: %i/%i",
-                 CurrTime % 1000, LenReg, (int) (ExpectedTime - CurrTime), CurrLevel, ExpectedLevel);
-    if (ExpectedLevel >= PrimaryBufferTarget + OutputFreq / 100 && audioSync)
-    {
-        unsigned int WaitTime = (ExpectedLevel - PrimaryBufferTarget) * 1000 / OutputFreq;
-        DebugMessage(M64MSG_VERBOSE, "    AiLenChanged(): Waiting %ims", WaitTime);
-        if (l_PausedForSync)
-            SDL_PauseAudio(0);
-        l_PausedForSync = 0;
-        SDL_Delay(WaitTime);
-    }
-    /* Or if the expected level of the primary buffer is less than the secondary buffer size
-       (ie, predicting an underflow), then pause the audio to let the emulator catch up to speed */
-    else if (ExpectedLevel < SecondaryBufferSize)
-    {
-        DebugMessage(M64MSG_VERBOSE, "    AiLenChanged(): Possible underflow at next audio callback; pausing playback");
-        if (!l_PausedForSync)
-            SDL_PauseAudio(1);
-        l_PausedForSync = 1;
-    }
-    /* otherwise the predicted buffer level is within our tolerance, so everything is okay */
-    else
-    {
-        if (l_PausedForSync)
-            SDL_PauseAudio(0);
-        l_PausedForSync = 0;
-    }
+    synchronize_audio();
 }
 
 EXPORT int CALL InitiateAudio( AUDIO_INFO Audio_Info )
