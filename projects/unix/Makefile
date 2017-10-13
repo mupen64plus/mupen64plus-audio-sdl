@@ -147,7 +147,7 @@ ifeq ($(origin SDL_CFLAGS) $(origin SDL_LDLIBS), undefined undefined)
       $(warning Using SDL 1.2 libraries)
     endif
   endif
-  SDL_CFLAGS  += $(shell $(SDL_CONFIG) --cflags)
+  SDL_CFLAGS += $(shell $(SDL_CONFIG) --cflags)
   SDL_LDLIBS += $(shell $(SDL_CONFIG) --libs)
 endif
 CFLAGS += $(SDL_CFLAGS)
@@ -171,6 +171,7 @@ ifneq ($(NO_SPEEX), 1)
     else
       # warn user
       $(warning No libspeexdsp development libraries found.  Mupen64plus-sdl-audio will be built without speex-* resampler.)
+	  NO_SPEEX = 1
     endif
   else
     SPEEX_CFLAGS += -DUSE_SPEEX
@@ -188,6 +189,7 @@ ifneq ($(NO_SRC), 1)
       SRC_LDLIBS += $(shell $(PKG_CONFIG) samplerate --libs)
     else
       $(warning No libsamplerate development libraries found.  Mupen64plus-sdl-audio will be built without src-* resampler.)
+	  NO_SRC = 1
     endif
   else
     SRC_CFLAGS += -DUSE_SRC
