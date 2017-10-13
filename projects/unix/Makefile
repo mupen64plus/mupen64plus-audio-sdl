@@ -296,13 +296,24 @@ OBJDIR = _obj$(POSTFIX)
 
 # list of source files to compile
 SOURCE = \
+	$(SRCDIR)/circular_buffer.c \
 	$(SRCDIR)/main.c \
-	$(SRCDIR)/volume.c
+	$(SRCDIR)/sdl_backend.c \
+	$(SRCDIR)/volume.c \
+	$(SRCDIR)/resamplers/resamplers.c \
+	$(SRCDIR)/resamplers/trivial.c
 
 ifeq ($(OS),MINGW)
 SOURCE += $(SRCDIR)/osal_dynamiclib_win32.c
 else
 SOURCE += $(SRCDIR)/osal_dynamiclib_unix.c
+endif
+
+ifneq ($(NO_SPEEX), 1)
+  SOURCE += $(SRCDIR)/resamplers/speex.c
+endif
+ifneq ($(NO_SRC), 1)
+  SOURCE += $(SRCDIR)/resamplers/src.c
 endif
 
 # generate a list of object files build, make a temporary directory for them

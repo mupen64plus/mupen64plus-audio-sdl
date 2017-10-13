@@ -22,12 +22,22 @@
 /* version info */
 #include "m64p_config.h"
 
-#define SDL_AUDIO_PLUGIN_VERSION 0x020500
-#define AUDIO_PLUGIN_API_VERSION 0x020000
-#define CONFIG_API_VERSION       0x020100
-#define CONFIG_PARAM_VERSION     1.00
+#include <stddef.h>
 
-#define VERSION_PRINTF_SPLIT(x) (((x) >> 16) & 0xffff), (((x) >> 8) & 0xff), ((x) & 0xff)
+struct resampler_interface;
+
+/* volume mixer types */
+enum {
+    VOLUME_TYPE_SDL = 1,
+    VOLUME_TYPE_OSS = 2,
+};
+
+void SetPlaybackVolume(void);
+
+size_t ResampleAndMix(void* resampler, const struct resampler_interface* iresampler,
+        void* mix_buffer,
+        const void* src, size_t src_size, unsigned int src_freq,
+        void* dst, size_t dst_size, unsigned int dst_freq);
 
 /* declarations of pointers to Core config functions */
 extern ptr_ConfigListSections     ConfigListSections;
@@ -48,3 +58,4 @@ extern ptr_ConfigGetParamFloat    ConfigGetParamFloat;
 extern ptr_ConfigGetParamBool     ConfigGetParamBool;
 extern ptr_ConfigGetParamString   ConfigGetParamString;
 
+void DebugMessage(int level, const char *message, ...);
