@@ -101,6 +101,8 @@ static void my_audio_callback(void* userdata, unsigned char* stream, int len)
     else
     {
         ++sdl_backend->underrun_count;
+        DebugMessage(M64MSG_WARNING, "Not enough available samples %u / %u. Underrun %u.",
+            available, needed, sdl_backend->underrun_count);
         memset(stream, 0, len);
     }
 }
