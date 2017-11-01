@@ -408,7 +408,7 @@ void sdl_synchronize_audio(struct sdl_backend* sdl_backend)
     {
         /* Core is behind SDL audio thread (predicting an underflow),
          * pause the audio to let the Core catch up */
-        if (!sdl_backend->paused_for_sync) { SDL_PauseAudio(0); }
+        if (!sdl_backend->paused_for_sync) { SDL_PauseAudio(1); }
         sdl_backend->paused_for_sync = 1;
     }
     else
