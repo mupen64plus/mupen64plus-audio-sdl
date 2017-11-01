@@ -365,7 +365,7 @@ void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t s
     }
     else
     {
-        DebugMessage(M64MSG_WARNING, "AiLenChanged(): Audio buffer overflow.");
+        DebugMessage(M64MSG_WARNING, "sdl_push_samples: pushing %u samples, but only %u available !", size, available);
     }
 }
 
