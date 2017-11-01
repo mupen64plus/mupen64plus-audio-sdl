@@ -101,7 +101,7 @@ static void my_audio_callback(void* userdata, unsigned char* stream, int len)
     else
     {
         ++sdl_backend->underrun_count;
-        memset(stream , 0, len);
+        memset(stream, 0, len);
     }
 }
 
@@ -352,8 +352,8 @@ void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t s
             size_t i;
             for (i = 0 ; i < size ; i += 4 )
             {
-                memcpy(dst + sdl_backend->primary_buffer.head + i, (const unsigned char*)src + i + 2, 2); /* Left */
-                memcpy(dst + sdl_backend->primary_buffer.head + i + 2, (const unsigned char*)src + i, 2); /* Right */
+                memcpy(dst + sdl_backend->primary_buffer.head + i + 0, (const unsigned char*)src + i + 2, 2); /* Left */
+                memcpy(dst + sdl_backend->primary_buffer.head + i + 2, (const unsigned char*)src + i + 0, 2); /* Right */
             }
         }
 
