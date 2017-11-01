@@ -54,7 +54,7 @@ void* cbuff_head(const struct circular_buffer* cbuff, size_t* available)
     assert(cbuff->head <= cbuff->size);
 
     *available = cbuff->size - cbuff->head;
-    return (void*)((char*)cbuff->data + cbuff->head);
+    return (unsigned char*)cbuff->data + cbuff->head;
 }
 
 
@@ -77,7 +77,7 @@ void consume_cbuff_data(struct circular_buffer* cbuff, size_t amount)
 {
     assert(cbuff->head >= amount);
 
-    memmove(cbuff->data, cbuff->data + amount, cbuff->head - amount);
+    memmove(cbuff->data, (unsigned char*)cbuff->data + amount, cbuff->head - amount);
     cbuff->head -= amount;
 }
 

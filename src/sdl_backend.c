@@ -119,7 +119,7 @@ static void resize_primary_buffer(struct circular_buffer* cbuff, size_t new_size
     if (new_size > cbuff->size) {
         SDL_LockAudio();
         cbuff->data = realloc(cbuff->data, new_size);
-        memset(cbuff->data + cbuff->size, 0, new_size - cbuff->size);
+        memset((unsigned char*)cbuff->data + cbuff->size, 0, new_size - cbuff->size);
         SDL_UnlockAudio();
         cbuff->size = new_size;
     }
