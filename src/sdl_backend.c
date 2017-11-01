@@ -335,7 +335,11 @@ void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t s
     if (sdl_backend->error != 0)
         return;
 
-    void* dst = cbuff_head(&sdl_backend->primary_buffer, &available);
+    /* XXX: it looks like that using directly the pointer returned by cbuff_head leads to audio "cracks"
+     * with better resamplers whereas adding cbuff.head inside each memcpy doesn't... Really strange !
+     */
+    cbuff_head(&sdl_backend->primary_buffer, &available);
+    unsigned char* dst = (unsigned char*)sdl_backend->primary_buffer.data;
 
     if (size <= available)
     {
@@ -348,8 +352,8 @@ void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t s
             size_t i;
             for (i = 0 ; i < size ; i += 4 )
             {
-                memcpy(dst + i, (const unsigned char*)src + i + 2, 2); /* Left */
-                memcpy(dst + i + 2, (const unsigned char*)src + i, 2); /* Right */
+                memcpy(dst + sdl_backend->primary_buffer.head + i, (const unsigned char*)src + i + 2, 2); /* Left */
+                memcpy(dst + sdl_backend->primary_buffer.head + i + 2, (const unsigned char*)src + i, 2); /* Right */
             }
         }
 
