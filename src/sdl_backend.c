@@ -120,8 +120,8 @@ static void resize_primary_buffer(struct circular_buffer* cbuff, size_t new_size
         SDL_LockAudio();
         cbuff->data = realloc(cbuff->data, new_size);
         memset((unsigned char*)cbuff->data + cbuff->size, 0, new_size - cbuff->size);
-        SDL_UnlockAudio();
         cbuff->size = new_size;
+        SDL_UnlockAudio();
     }
 }
 
@@ -359,9 +359,9 @@ void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t s
             }
         }
 
-        SDL_UnlockAudio();
-
         produce_cbuff_data(&sdl_backend->primary_buffer, (size + 3) & ~0x3);
+
+        SDL_UnlockAudio();
     }
     else
     {
