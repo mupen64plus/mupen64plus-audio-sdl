@@ -155,9 +155,6 @@ static size_t src_resample(void* resampler,
         grow_fbuffer(&src_resampler->fbuffers[1], dst_size*2);
     }
 
-    memset(src_resampler->fbuffers[0].data, 0, src_resampler->fbuffers[0].size);
-    memset(src_resampler->fbuffers[1].data, 0, src_resampler->fbuffers[1].size);
-
     src_short_to_float_array((short*)src, src_resampler->fbuffers[0].data, src_size/2);
 
     /* perform resampling */

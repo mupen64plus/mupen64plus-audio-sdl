@@ -101,7 +101,9 @@ static void my_audio_callback(void* userdata, unsigned char* stream, int len)
     else
     {
         ++sdl_backend->underrun_count;
-        memset(stream , 0, len);
+        DebugMessage(M64MSG_WARNING, "Not enough available samples %u / %u. Underrun %u.",
+            available, needed, sdl_backend->underrun_count);
+        memset(stream, 0, len);
     }
 }
 
@@ -117,9 +119,9 @@ static void resize_primary_buffer(struct circular_buffer* cbuff, size_t new_size
     if (new_size > cbuff->size) {
         SDL_LockAudio();
         cbuff->data = realloc(cbuff->data, new_size);
-        memset(cbuff->data + cbuff->size, 0, new_size - cbuff->size);
-        SDL_UnlockAudio();
+        memset((unsigned char*)cbuff->data + cbuff->size, 0, new_size - cbuff->size);
         cbuff->size = new_size;
+        SDL_UnlockAudio();
     }
 }
 
@@ -335,7 +337,11 @@ void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t s
     if (sdl_backend->error != 0)
         return;
 
-    void* dst = cbuff_head(&sdl_backend->primary_buffer, &available);
+    /* XXX: it looks like that using directly the pointer returned by cbuff_head leads to audio "cracks"
+     * with better resamplers whereas adding cbuff.head inside each memcpy doesn't... Really strange !
+     */
+    cbuff_head(&sdl_backend->primary_buffer, &available);
+    unsigned char* dst = (unsigned char*)sdl_backend->primary_buffer.data;
 
     if (size <= available)
     {
@@ -348,18 +354,18 @@ void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t s
             size_t i;
             for (i = 0 ; i < size ; i += 4 )
             {
-                memcpy(dst + i, (const unsigned char*)src + i + 2, 2); /* Left */
-                memcpy(dst + i + 2, (const unsigned char*)src + i, 2); /* Right */
+                memcpy(dst + sdl_backend->primary_buffer.head + i + 0, (const unsigned char*)src + i + 2, 2); /* Left */
+                memcpy(dst + sdl_backend->primary_buffer.head + i + 2, (const unsigned char*)src + i + 0, 2); /* Right */
             }
         }
 
-        SDL_UnlockAudio();
-
         produce_cbuff_data(&sdl_backend->primary_buffer, (size + 3) & ~0x3);
+
+        SDL_UnlockAudio();
     }
     else
     {
-        DebugMessage(M64MSG_WARNING, "AiLenChanged(): Audio buffer overflow.");
+        DebugMessage(M64MSG_WARNING, "sdl_push_samples: pushing %u samples, but only %u available !", size, available);
     }
 }
 
@@ -408,7 +414,7 @@ void sdl_synchronize_audio(struct sdl_backend* sdl_backend)
     {
         /* Core is behind SDL audio thread (predicting an underflow),
          * pause the audio to let the Core catch up */
-        if (!sdl_backend->paused_for_sync) { SDL_PauseAudio(0); }
+        if (!sdl_backend->paused_for_sync) { SDL_PauseAudio(1); }
         sdl_backend->paused_for_sync = 1;
     }
     else

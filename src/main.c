@@ -323,7 +323,7 @@ static unsigned int dacrate2freq(unsigned int vi_clock, uint32_t dacrate)
     return vi_clock / (dacrate + 1);
 }
 
-EXPORT void CALL AiDacrateChanged( int SystemType )
+EXPORT void CALL AiDacrateChanged(int SystemType)
 {
     if (!l_PluginInit || l_sdl_backend == NULL)
         return;
@@ -334,7 +334,7 @@ EXPORT void CALL AiDacrateChanged( int SystemType )
     sdl_set_format(l_sdl_backend, frequency, bits);
 }
 
-EXPORT void CALL AiLenChanged( void )
+EXPORT void CALL AiLenChanged(void)
 {
     if (!l_PluginInit || l_sdl_backend == NULL)
         return;
@@ -344,7 +344,7 @@ EXPORT void CALL AiLenChanged( void )
     sdl_synchronize_audio(l_sdl_backend);
 }
 
-EXPORT int CALL InitiateAudio( AUDIO_INFO Audio_Info )
+EXPORT int CALL InitiateAudio(AUDIO_INFO Audio_Info)
 {
     if (!l_PluginInit)
         return 0;
