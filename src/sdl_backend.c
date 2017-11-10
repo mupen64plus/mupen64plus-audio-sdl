@@ -86,6 +86,14 @@ struct sdl_backend
     const struct resampler_interface* iresampler;
 };
 
+/* SDL_AudioFormat.format format specifier and args builder */
+#define AFMT_FMTSPEC        "%c%d%s"
+#define AFMT_ARGS(x) \
+        ((SDL_AUDIO_ISFLOAT(x)) ? 'F' : (SDL_AUDIO_ISSIGNED(x)) ? 'S' : 'U'), \
+        SDL_AUDIO_BITSIZE(x), \
+        SDL_AUDIO_ISBIGENDIAN(x) ? "BE" : "LE"
+
+
 static void my_audio_callback(void* userdata, unsigned char* stream, int len)
 {
     struct sdl_backend* sdl_backend = (struct sdl_backend*)userdata;
@@ -185,7 +193,7 @@ static void sdl_init_audio_device(struct sdl_backend* sdl_backend)
     desired.userdata = sdl_backend;
 
     DebugMessage(M64MSG_VERBOSE, "Requesting frequency: %iHz.", desired.freq);
-    DebugMessage(M64MSG_VERBOSE, "Requesting format: %i.", desired.format);
+    DebugMessage(M64MSG_VERBOSE, "Requesting format: " AFMT_FMTSPEC ".", AFMT_ARGS(desired.format));
 
     /* Open the audio device */
     if (SDL_OpenAudio(&desired, &obtained) < 0)
@@ -196,11 +204,11 @@ static void sdl_init_audio_device(struct sdl_backend* sdl_backend)
     }
     if (desired.format != obtained.format)
     {
-        DebugMessage(M64MSG_WARNING, "Obtained audio format differs from requested.");
+        DebugMessage(M64MSG_WARNING, "Obtained audio format (" AFMT_FMTSPEC ") differs from requested (" AFMT_FMTSPEC ").", AFMT_ARGS(obtained.format), AFMT_ARGS(desired.format));
     }
     if (desired.freq != obtained.freq)
     {
-        DebugMessage(M64MSG_WARNING, "Obtained frequency differs from requested.");
+        DebugMessage(M64MSG_WARNING, "Obtained frequency (%i) differs from requested (%i).", obtained.freq, desired.freq);
     }
 
     /* adjust some variables given the obtained audio spec */
@@ -225,7 +233,7 @@ static void sdl_init_audio_device(struct sdl_backend* sdl_backend)
     }
 
     DebugMessage(M64MSG_VERBOSE, "Frequency: %i", obtained.freq);
-    DebugMessage(M64MSG_VERBOSE, "Format: %i", obtained.format);
+    DebugMessage(M64MSG_VERBOSE, "Format: " AFMT_FMTSPEC, AFMT_ARGS(obtained.format));
     DebugMessage(M64MSG_VERBOSE, "Channels: %i", obtained.channels);
     DebugMessage(M64MSG_VERBOSE, "Silence: %i", obtained.silence);
     DebugMessage(M64MSG_VERBOSE, "Samples: %i", obtained.samples);
