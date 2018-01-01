@@ -346,7 +346,7 @@ void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t s
         SDL_LockAudio();
 
         if (sdl_backend->swap_channels) {
-            memcpy(dst, src, size);
+            memcpy(dst + sdl_backend->primary_buffer.head, src, size);
         }
         else {
             size_t i;
