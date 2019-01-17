@@ -43,9 +43,7 @@ size_t ResampleAndMix(void* resampler, const struct resampler_interface* iresamp
 extern ptr_ConfigListSections     ConfigListSections;
 extern ptr_ConfigOpenSection      ConfigOpenSection;
 extern ptr_ConfigDeleteSection    ConfigDeleteSection;
-extern ptr_ConfigSaveSection      ConfigSaveSection;
 extern ptr_ConfigListParameters   ConfigListParameters;
-extern ptr_ConfigSaveFile         ConfigSaveFile;
 extern ptr_ConfigSetParameter     ConfigSetParameter;
 extern ptr_ConfigGetParameter     ConfigGetParameter;
 extern ptr_ConfigGetParameterHelp ConfigGetParameterHelp;
