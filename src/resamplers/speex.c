@@ -116,7 +116,7 @@ static size_t speex_resample(void* resampler,
 
     if (dst_size != out_len * BYTES_PER_SAMPLE) {
         DebugMessage(M64MSG_WARNING, "dst_size = %u != outlen*4 = %u",
-                dst_size, out_len * BYTES_PER_SAMPLE);
+                (uint32_t) dst_size, out_len * BYTES_PER_SAMPLE);
     }
     memset((char*)dst + out_len * BYTES_PER_SAMPLE, 0, dst_size - out_len * BYTES_PER_SAMPLE);
 

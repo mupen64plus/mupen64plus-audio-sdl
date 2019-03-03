@@ -161,9 +161,9 @@ static void sdl_init_audio_device(struct sdl_backend* sdl_backend)
     sdl_backend->secondary_buffer_size = ConfigGetParamInt(sdl_backend->config, "SECONDARY_BUFFER_SIZE");
 
     DebugMessage(M64MSG_INFO,    "Initializing SDL audio subsystem...");
-    DebugMessage(M64MSG_VERBOSE, "Primary buffer: %i output samples.", sdl_backend->primary_buffer_size);
-    DebugMessage(M64MSG_VERBOSE, "Primary target fullness: %i output samples.", sdl_backend->target);
-    DebugMessage(M64MSG_VERBOSE, "Secondary buffer: %i output samples.", sdl_backend->secondary_buffer_size);
+    DebugMessage(M64MSG_VERBOSE, "Primary buffer: %i output samples.", (uint32_t) sdl_backend->primary_buffer_size);
+    DebugMessage(M64MSG_VERBOSE, "Primary target fullness: %i output samples.", (uint32_t) sdl_backend->target);
+    DebugMessage(M64MSG_VERBOSE, "Secondary buffer: %i output samples.", (uint32_t) sdl_backend->secondary_buffer_size);
 
     memset(&desired, 0, sizeof(desired));
     desired.freq = select_output_frequency(sdl_backend->input_frequency);
@@ -363,7 +363,7 @@ void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t s
     }
     else
     {
-        DebugMessage(M64MSG_WARNING, "sdl_push_samples: pushing %u samples, but only %u available !", size, available);
+        DebugMessage(M64MSG_WARNING, "sdl_push_samples: pushing %u samples, but only %u available !", (uint32_t) size, (uint32_t) available);
     }
 }
 
