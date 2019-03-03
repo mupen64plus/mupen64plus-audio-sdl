@@ -24,6 +24,12 @@
 
 #include <stddef.h>
 
+#if defined(__GNUC__)
+#define ATTR_FMT(fmtpos, attrpos) __attribute__ ((format (printf, fmtpos, attrpos)))
+#else
+#define ATTR_FMT(fmtpos, attrpos)
+#endif
+
 struct resampler_interface;
 
 /* volume mixer types */
@@ -56,4 +62,5 @@ extern ptr_ConfigGetParamFloat    ConfigGetParamFloat;
 extern ptr_ConfigGetParamBool     ConfigGetParamBool;
 extern ptr_ConfigGetParamString   ConfigGetParamString;
 
-void DebugMessage(int level, const char *message, ...);
+void DebugMessage(int level, const char *message, ...) ATTR_FMT(2,3);
+
