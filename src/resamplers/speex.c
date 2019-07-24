@@ -27,6 +27,7 @@
 #include "m64p_types.h"
 
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 #define ARRAY_SIZE(x) sizeof((x)) / sizeof((x)[0])
