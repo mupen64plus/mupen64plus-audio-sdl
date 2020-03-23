@@ -37,8 +37,19 @@
 #define N64_SAMPLE_BYTES 4
 #define SDL_SAMPLE_BYTES 4
 
+#if SDL_VERSION_ATLEAST(2,0,0)
+#define SDL_LockAudio() SDL_LockAudioDevice(sdl_backend->device)
+#define SDL_UnlockAudio() SDL_UnlockAudioDevice(sdl_backend->device)
+#define SDL_PauseAudio(A) SDL_PauseAudioDevice(sdl_backend->device, A)
+#define SDL_CloseAudio() SDL_CloseAudioDevice(sdl_backend->device)
+#define SDL_OpenAudio(A, B) ((sdl_backend->device = SDL_OpenAudioDevice(NULL, 0, A, B, 0)) - 1)
 struct sdl_backend
 {
+    SDL_AudioDeviceID device;
+#else
+struct sdl_backend
+{
+#endif
     m64p_handle config;
 
     struct circular_buffer primary_buffer;
@@ -111,14 +122,14 @@ static size_t new_primary_buffer_size(const struct sdl_backend* sdl_backend)
         (sdl_backend->output_frequency * 100);
 }
 
-static void resize_primary_buffer(struct circular_buffer* cbuff, size_t new_size)
+static void resize_primary_buffer(struct sdl_backend* sdl_backend, size_t new_size)
 {
     /* only grows the buffer */
-    if (new_size > cbuff->size) {
+    if (new_size > sdl_backend->primary_buffer.size) {
         SDL_LockAudio();
-        cbuff->data = realloc(cbuff->data, new_size);
-        memset((unsigned char*)cbuff->data + cbuff->size, 0, new_size - cbuff->size);
-        cbuff->size = new_size;
+        sdl_backend->primary_buffer.data = realloc(sdl_backend->primary_buffer.data, new_size);
+        memset((unsigned char*)sdl_backend->primary_buffer.data + sdl_backend->primary_buffer.size, 0, new_size - sdl_backend->primary_buffer.size);
+        sdl_backend->primary_buffer.size = new_size;
         SDL_UnlockAudio();
     }
 }
@@ -205,7 +216,7 @@ static void sdl_init_audio_device(struct sdl_backend* sdl_backend)
         sdl_backend->primary_buffer_size = sdl_backend->secondary_buffer_size * 2;
 
     /* allocate memory for audio buffers */
-    resize_primary_buffer(&sdl_backend->primary_buffer, new_primary_buffer_size(sdl_backend));
+    resize_primary_buffer(sdl_backend, new_primary_buffer_size(sdl_backend));
     sdl_backend->mix_buffer = realloc(sdl_backend->mix_buffer, sdl_backend->secondary_buffer_size * SDL_SAMPLE_BYTES);
 
     /* preset the last callback time */
@@ -432,5 +443,5 @@ void sdl_set_speed_factor(struct sdl_backend* sdl_backend, unsigned int speed_fa
     sdl_backend->speed_factor = speed_factor;
 
     /* we need a different size primary buffer to store the N64 samples when the speed changes */
-    resize_primary_buffer(&sdl_backend->primary_buffer, new_primary_buffer_size(sdl_backend));
+    resize_primary_buffer(sdl_backend, new_primary_buffer_size(sdl_backend));
 }
