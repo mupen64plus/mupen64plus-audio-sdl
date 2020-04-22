@@ -236,7 +236,7 @@ EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Con
     ConfigSetDefaultInt(l_ConfigAudio, "VOLUME_CONTROL_TYPE",   VOLUME_TYPE_SDL,       "Volume control type: 1 = SDL (only affects Mupen64Plus output)  2 = OSS mixer (adjusts master PC volume)");
     ConfigSetDefaultInt(l_ConfigAudio, "VOLUME_ADJUST",         5,                     "Percentage change each time the volume is increased or decreased");
     ConfigSetDefaultInt(l_ConfigAudio, "VOLUME_DEFAULT",        80,                    "Default volume when a game is started.  Only used if VOLUME_CONTROL_TYPE is 1");
-    ConfigSetDefaultBool(l_ConfigAudio, "AUDIO_SYNC", 0,                               "Synchronize Video/Audio");
+    ConfigSetDefaultBool(l_ConfigAudio, "AUDIO_SYNC",           1,                     "Synchronize Video/Audio");
 
 #ifdef USE_AUDIORESOURCE
     setenv("PULSE_PROP_media.role", "x-maemo", 1);
