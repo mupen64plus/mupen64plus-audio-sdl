@@ -93,10 +93,13 @@ ifeq ("$(CPU)","OTHER")
   PIC ?= 1
 endif
 
+SRCDIR = ../../src
+OBJDIR = _obj$(POSTFIX)
+
 # base CFLAGS, LDLIBS, and LDFLAGS
 OPTFLAGS ?= -O3 -flto
 WARNFLAGS ?= -Wall
-CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -ffast-math -fno-strict-aliasing -fvisibility=hidden -I../../src
+CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -ffast-math -fno-strict-aliasing -fvisibility=hidden -I$(SRCDIR)
 LDFLAGS += $(SHARED)
 
 # Since we are building a shared library, we must compile with -fPIC on some architectures
@@ -290,9 +293,6 @@ endif
 ifeq ($(PLUGINDIR),)
   PLUGINDIR := $(LIBDIR)/mupen64plus
 endif
-
-SRCDIR = ../../src
-OBJDIR = _obj$(POSTFIX)
 
 # list of source files to compile
 SOURCE = \
