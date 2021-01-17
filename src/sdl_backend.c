@@ -332,15 +332,10 @@ void release_sdl_backend(struct sdl_backend* sdl_backend)
     free(sdl_backend);
 }
 
-void sdl_set_format(struct sdl_backend* sdl_backend, unsigned int frequency, unsigned int bits)
+void sdl_set_frequency(struct sdl_backend* sdl_backend, unsigned int frequency)
 {
     if (sdl_backend->error != 0)
         return;
-
-    /* XXX: assume 16-bit samples */
-    if (bits != 16) {
-        DebugMessage(M64MSG_ERROR, "Incoming samples are not 16 bits (%d)", bits);
-    }
 
     sdl_backend->input_frequency = frequency;
     sdl_init_audio_device(sdl_backend);
