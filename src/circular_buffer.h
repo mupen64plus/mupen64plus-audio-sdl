@@ -29,15 +29,18 @@ struct circular_buffer
     void* data;
     size_t size;
     size_t head;
+    size_t tail;
 };
 
 int init_cbuff(struct circular_buffer* cbuff, size_t capacity);
 
 void release_cbuff(struct circular_buffer* cbuff);
 
-void* cbuff_head(const struct circular_buffer* cbuff, size_t* available);
+void grow_cbuff(struct circular_buffer* cbuff, size_t new_size);
 
-void* cbuff_tail(const struct circular_buffer* cbuff, size_t* available);
+void* cbuff_head(const struct circular_buffer* cbuff, size_t* available, size_t* extra);
+
+void* cbuff_tail(const struct circular_buffer* cbuff, size_t* available, size_t* extra);
 
 void produce_cbuff_data(struct circular_buffer* cbuff, size_t amount);
 
