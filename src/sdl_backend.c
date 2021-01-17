@@ -349,35 +349,36 @@ void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t s
     if (sdl_backend->error != 0)
         return;
 
-    /* XXX: it looks like that using directly the pointer returned by cbuff_head leads to audio "cracks"
-     * with better resamplers whereas adding cbuff.head inside each memcpy doesn't... Really strange !
-     */
-    cbuff_head(&sdl_backend->primary_buffer, &available);
-    unsigned char* dst = (unsigned char*)sdl_backend->primary_buffer.data;
+    /* truncate to full samples */
+    if (size & 0x3) {
+        DebugMessage(M64MSG_WARNING, "sdl_push_samples: pushing non full samples: %zu bytes !", size);
+    }
+    size = (size / 4) * 4;
 
+    /* We need to lock audio before accessing cbuff */
+    SDL_LockAudio();
+    unsigned char* dst = cbuff_head(&sdl_backend->primary_buffer, &available);
     if (size <= available)
     {
-        SDL_LockAudio();
-
         if (sdl_backend->swap_channels) {
-            memcpy(dst + sdl_backend->primary_buffer.head, src, size);
+            memcpy(dst, src, size);
         }
         else {
             size_t i;
             for (i = 0 ; i < size ; i += 4 )
             {
-                memcpy(dst + sdl_backend->primary_buffer.head + i + 0, (const unsigned char*)src + i + 2, 2); /* Left */
-                memcpy(dst + sdl_backend->primary_buffer.head + i + 2, (const unsigned char*)src + i + 0, 2); /* Right */
+                memcpy(dst + i + 0, (const unsigned char*)src + i + 2, 2); /* Left */
+                memcpy(dst + i + 2, (const unsigned char*)src + i + 0, 2); /* Right */
             }
         }
 
-        produce_cbuff_data(&sdl_backend->primary_buffer, (size + 3) & ~0x3);
-
-        SDL_UnlockAudio();
+        produce_cbuff_data(&sdl_backend->primary_buffer, size);
     }
-    else
+    SDL_UnlockAudio();
+
+    if (size > available)
     {
-        DebugMessage(M64MSG_WARNING, "sdl_push_samples: pushing %u samples, but only %u available !", (uint32_t) size, (uint32_t) available);
+        DebugMessage(M64MSG_WARNING, "sdl_push_samples: pushing %zu bytes, but only %zu available !", size, available);
     }
 }
 
@@ -387,6 +388,7 @@ static size_t estimate_level_at_next_audio_cb(struct sdl_backend* sdl_backend)
     size_t available;
     unsigned int now = SDL_GetTicks();
 
+    /* NOTE: given that we only access "available" counter from cbuff, we don't need to protect it's access with LockAudio/UnlockAudio */
     cbuff_tail(&sdl_backend->primary_buffer, &available);
 
     /* Start by calculating the current Primary buffer fullness in terms of output samples */
