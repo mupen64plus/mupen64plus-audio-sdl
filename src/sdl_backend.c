@@ -356,7 +356,18 @@ void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t s
     {
         SDL_LockAudio();
 
-        if (sdl_backend->swap_channels) {
+        /* Confusing logic but, for LittleEndian host using memcpy will result in swapped channels,
+         * whereas the other branch will result in non-swapped channels.
+         * For BigEndian host this logic is inverted, memcpy will result in non swapped channels
+         * and the other branch will result in swapped channels.
+         *
+         * This is due to the fact that the core stores 32bit words in native order in RDRAM.
+         * For instance N64 bytes "Lh Ll Rh Rl" will be stored as "Rl Rh Ll Lh" on LittleEndian host
+         * and therefore should the non-memcpy path to get non swapped channels,
+         * whereas on BigEndian host the bytes will be stored as "Lh Ll Rh Rl" and therefore
+         * memcpy path results in the non-swapped channels outcome.
+         */
+        if (sdl_backend->swap_channels ^ (SDL_BYTEORDER == SDL_BIG_ENDIAN)) {
             memcpy(dst + sdl_backend->primary_buffer.head, src, size);
         }
         else {
