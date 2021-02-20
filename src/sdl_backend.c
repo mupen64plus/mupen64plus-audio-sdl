@@ -387,7 +387,7 @@ void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t s
          * memcpy path results in the non-swapped channels outcome.
          */
         if (sdl_backend->swap_channels ^ (SDL_BYTEORDER == SDL_BIG_ENDIAN)) {
-            memcpy(dst + sdl_backend->primary_buffer.head, src, size);
+            memcpy(dst, src, size);
         }
         else {
             size_t i;
