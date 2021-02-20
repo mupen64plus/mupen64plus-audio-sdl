@@ -37,6 +37,21 @@
 #define N64_SAMPLE_BYTES 4
 #define SDL_SAMPLE_BYTES 4
 
+/* For SDL < 1.3 */
+#if !SDL_VERSION_ATLEAST(1,3,0)
+#define SDL_AUDIO_MASK_BITSIZE       (0xFF)
+#define SDL_AUDIO_MASK_DATATYPE      (1<<8)
+#define SDL_AUDIO_MASK_ENDIAN        (1<<12)
+#define SDL_AUDIO_MASK_SIGNED        (1<<15)
+#define SDL_AUDIO_BITSIZE(x)         (x & SDL_AUDIO_MASK_BITSIZE)
+#define SDL_AUDIO_ISFLOAT(x)         (x & SDL_AUDIO_MASK_DATATYPE)
+#define SDL_AUDIO_ISBIGENDIAN(x)     (x & SDL_AUDIO_MASK_ENDIAN)
+#define SDL_AUDIO_ISSIGNED(x)        (x & SDL_AUDIO_MASK_SIGNED)
+#define SDL_AUDIO_ISINT(x)           (!SDL_AUDIO_ISFLOAT(x))
+#define SDL_AUDIO_ISLITTLEENDIAN(x)  (!SDL_AUDIO_ISBIGENDIAN(x))
+#define SDL_AUDIO_ISUNSIGNED(x)      (!SDL_AUDIO_ISSIGNED(x))
+#endif
+
 #if SDL_VERSION_ATLEAST(2,0,0)
 #define SDL_LockAudio() SDL_LockAudioDevice(sdl_backend->device)
 #define SDL_UnlockAudio() SDL_UnlockAudioDevice(sdl_backend->device)
@@ -85,6 +100,14 @@ struct sdl_backend
     void* resampler;
     const struct resampler_interface* iresampler;
 };
+
+/* SDL_AudioFormat.format format specifier and args builder */
+#define AFMT_FMTSPEC        "%c%d%s"
+#define AFMT_ARGS(x) \
+        ((SDL_AUDIO_ISFLOAT(x)) ? 'F' : (SDL_AUDIO_ISSIGNED(x)) ? 'S' : 'U'), \
+        SDL_AUDIO_BITSIZE(x), \
+        SDL_AUDIO_ISBIGENDIAN(x) ? "BE" : "LE"
+
 
 static void my_audio_callback(void* userdata, unsigned char* stream, int len)
 {
@@ -185,7 +208,7 @@ static void sdl_init_audio_device(struct sdl_backend* sdl_backend)
     desired.userdata = sdl_backend;
 
     DebugMessage(M64MSG_VERBOSE, "Requesting frequency: %iHz.", desired.freq);
-    DebugMessage(M64MSG_VERBOSE, "Requesting format: %i.", desired.format);
+    DebugMessage(M64MSG_VERBOSE, "Requesting format: " AFMT_FMTSPEC ".", AFMT_ARGS(desired.format));
 
     /* Open the audio device */
     if (SDL_OpenAudio(&desired, &obtained) < 0)
@@ -196,11 +219,11 @@ static void sdl_init_audio_device(struct sdl_backend* sdl_backend)
     }
     if (desired.format != obtained.format)
     {
-        DebugMessage(M64MSG_WARNING, "Obtained audio format differs from requested.");
+        DebugMessage(M64MSG_WARNING, "Obtained audio format (" AFMT_FMTSPEC ") differs from requested (" AFMT_FMTSPEC ").", AFMT_ARGS(obtained.format), AFMT_ARGS(desired.format));
     }
     if (desired.freq != obtained.freq)
     {
-        DebugMessage(M64MSG_WARNING, "Obtained frequency differs from requested.");
+        DebugMessage(M64MSG_WARNING, "Obtained frequency (%i) differs from requested (%i).", obtained.freq, desired.freq);
     }
 
     /* adjust some variables given the obtained audio spec */
@@ -225,7 +248,7 @@ static void sdl_init_audio_device(struct sdl_backend* sdl_backend)
     }
 
     DebugMessage(M64MSG_VERBOSE, "Frequency: %i", obtained.freq);
-    DebugMessage(M64MSG_VERBOSE, "Format: %i", obtained.format);
+    DebugMessage(M64MSG_VERBOSE, "Format: " AFMT_FMTSPEC, AFMT_ARGS(obtained.format));
     DebugMessage(M64MSG_VERBOSE, "Channels: %i", obtained.channels);
     DebugMessage(M64MSG_VERBOSE, "Silence: %i", obtained.silence);
     DebugMessage(M64MSG_VERBOSE, "Samples: %i", obtained.samples);
@@ -324,15 +347,10 @@ void release_sdl_backend(struct sdl_backend* sdl_backend)
     free(sdl_backend);
 }
 
-void sdl_set_format(struct sdl_backend* sdl_backend, unsigned int frequency, unsigned int bits)
+void sdl_set_frequency(struct sdl_backend* sdl_backend, unsigned int frequency)
 {
     if (sdl_backend->error != 0)
         return;
-
-    /* XXX: assume 16-bit samples */
-    if (bits != 16) {
-        DebugMessage(M64MSG_ERROR, "Incoming samples are not 16 bits (%d)", bits);
-    }
 
     sdl_backend->input_frequency = frequency;
     sdl_init_audio_device(sdl_backend);
@@ -346,16 +364,17 @@ void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t s
     if (sdl_backend->error != 0)
         return;
 
-    /* XXX: it looks like that using directly the pointer returned by cbuff_head leads to audio "cracks"
-     * with better resamplers whereas adding cbuff.head inside each memcpy doesn't... Really strange !
-     */
-    cbuff_head(&sdl_backend->primary_buffer, &available);
-    unsigned char* dst = (unsigned char*)sdl_backend->primary_buffer.data;
+    /* truncate to full samples */
+    if (size & 0x3) {
+        DebugMessage(M64MSG_WARNING, "sdl_push_samples: pushing non full samples: %zu bytes !", size);
+    }
+    size = (size / 4) * 4;
 
+    /* We need to lock audio before accessing cbuff */
+    SDL_LockAudio();
+    unsigned char* dst = cbuff_head(&sdl_backend->primary_buffer, &available);
     if (size <= available)
     {
-        SDL_LockAudio();
-
         /* Confusing logic but, for LittleEndian host using memcpy will result in swapped channels,
          * whereas the other branch will result in non-swapped channels.
          * For BigEndian host this logic is inverted, memcpy will result in non swapped channels
@@ -374,18 +393,18 @@ void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t s
             size_t i;
             for (i = 0 ; i < size ; i += 4 )
             {
-                memcpy(dst + sdl_backend->primary_buffer.head + i + 0, (const unsigned char*)src + i + 2, 2); /* Left */
-                memcpy(dst + sdl_backend->primary_buffer.head + i + 2, (const unsigned char*)src + i + 0, 2); /* Right */
+                memcpy(dst + i + 0, (const unsigned char*)src + i + 2, 2); /* Left */
+                memcpy(dst + i + 2, (const unsigned char*)src + i + 0, 2); /* Right */
             }
         }
 
-        produce_cbuff_data(&sdl_backend->primary_buffer, (size + 3) & ~0x3);
-
-        SDL_UnlockAudio();
+        produce_cbuff_data(&sdl_backend->primary_buffer, size);
     }
-    else
+    SDL_UnlockAudio();
+
+    if (size > available)
     {
-        DebugMessage(M64MSG_WARNING, "sdl_push_samples: pushing %u samples, but only %u available !", (uint32_t) size, (uint32_t) available);
+        DebugMessage(M64MSG_WARNING, "sdl_push_samples: pushing %zu bytes, but only %zu available !", size, available);
     }
 }
 
@@ -395,6 +414,7 @@ static size_t estimate_level_at_next_audio_cb(struct sdl_backend* sdl_backend)
     size_t available;
     unsigned int now = SDL_GetTicks();
 
+    /* NOTE: given that we only access "available" counter from cbuff, we don't need to protect it's access with LockAudio/UnlockAudio */
     cbuff_tail(&sdl_backend->primary_buffer, &available);
 
     /* Start by calculating the current Primary buffer fullness in terms of output samples */

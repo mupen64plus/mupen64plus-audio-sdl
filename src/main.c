@@ -322,9 +322,8 @@ EXPORT void CALL AiDacrateChanged(int SystemType)
         return;
 
     unsigned int frequency = dacrate2freq(vi_clock_from_system_type(SystemType), *AudioInfo.AI_DACRATE_REG);
-    unsigned int bits = 1 + (*AudioInfo.AI_BITRATE_REG);
 
-    sdl_set_format(l_sdl_backend, frequency, bits);
+    sdl_set_frequency(l_sdl_backend, frequency);
 }
 
 EXPORT void CALL AiLenChanged(void)
