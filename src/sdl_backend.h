@@ -30,7 +30,7 @@ struct sdl_backend* init_sdl_backend_from_config(m64p_handle config);
 
 void release_sdl_backend(struct sdl_backend* sdl_backend);
 
-void sdl_set_format(struct sdl_backend* sdl_backend, unsigned int frequency, unsigned int bits);
+void sdl_set_frequency(struct sdl_backend* sdl_backend, unsigned int frequency);
 
 void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t size);
 
