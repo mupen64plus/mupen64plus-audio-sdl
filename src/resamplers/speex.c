@@ -93,9 +93,9 @@ static void speex_release(void* resampler)
     speex_resampler_destroy(spx_state);
 }
 
-static size_t speex_resample(void* resampler,
-                             const void* src, size_t src_size, unsigned int src_freq,
-                             void* dst, size_t dst_size, unsigned int dst_freq)
+static void speex_resample(void* resampler,
+                           const void* src, size_t src_size, unsigned int src_freq, size_t* consumed,
+                           void* dst, size_t dst_size, unsigned int dst_freq, size_t* produced)
 {
     SpeexResamplerState* spx_state = (SpeexResamplerState*)resampler;
 
@@ -111,17 +111,14 @@ static size_t speex_resample(void* resampler,
     if (error != RESAMPLER_ERR_SUCCESS)
     {
         DebugMessage(M64MSG_ERROR, "Speex error: %s", speex_resampler_strerror(error));
+        *consumed = src_size;
+        *produced = dst_size;
         memset(dst, 0, dst_size);
-        return src_size;
+        return;
     }
 
-    if (dst_size != out_len * BYTES_PER_SAMPLE) {
-        DebugMessage(M64MSG_WARNING, "dst_size = %u != outlen*4 = %u",
-                (uint32_t) dst_size, out_len * BYTES_PER_SAMPLE);
-    }
-    memset((char*)dst + out_len * BYTES_PER_SAMPLE, 0, dst_size - out_len * BYTES_PER_SAMPLE);
-
-    return in_len * BYTES_PER_SAMPLE;
+    *consumed = in_len * BYTES_PER_SAMPLE;
+    *produced = out_len * BYTES_PER_SAMPLE;
 }
 
 
