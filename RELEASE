@@ -1,9 +1,57 @@
 SDL Audio plugin for Mupen64Plus
 ---------------------------------
 
-Mupen64Plus-audio-sdl v2.5.9 - February 10, 2019
-------------------------------------------------
- - *** BETA RELEASE *** For Testing Only ***
+----------------------------------------------
+# Mupen64Plus-audio-sdl v2.6.0 - July 14, 2024
+
+## Merged PRs
+
+* [43](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/43): CI/CD: Update to generic scripts, independent schedule, etc
+* [42](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/42): CI/CD: Fixes Ubuntu i386 builds, among other changes
+* [41](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/41): CI/CD: Integrate scheduled builds and other...
+* [40](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/40): CI/CD: Update MSVC
+* [39](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/39): CI/CD: Update
+* [38](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/38): CI/CD: Implement GitHub Actions and public nightly builds
+* [37](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/37): Fix channel swapping logic for BigEndian systems
+* [35](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/35): Fixes
+* [34](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/34): build: Allow out of tree builds.
+* [32](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/32): Allow non-default compilers without resorting to symbolic links
+* [31](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/31): Allow to set custom platform toolset from commands
+* [30](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/30): Add SDL2 compatibility
+* [29](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/29): AppVeyor with artifact packaging
+* [28](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/28): Changes to have more generic project files
+* [27](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/27): Fix gcc 8.3 compile with headers for uint32_t
+
+## Top Contributors (2 or more commits)
+1. Jj0YzL5nvJ
+2. bsmiles32
+3. richard42
+4. Gillou68310
+
+--------------------------------------------------
+# Mupen64Plus-audio-sdl v2.5.9 - February 10, 2019
+
+## Merged PRs
+
+* [26](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/26): Remove use of ConfigSaveOptions.
+* [25](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/25): Update homepage links
+* [24](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/24): Fix swap channels path.
+* [23](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/23): Remove underrun messages as it spammed too much and is not really needed
+* [22](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/22): Build MXE targets as additional tests in travis build matrix
+* [21](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/21): Various fixes.
+  Hopefully this should fix the "audio cracks" reported in https://github.com/mupen64plus/mupen64plus-core/issues/463
+* [20](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/20): Disable speex/src when their libraries are not found
+* [19](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/19): Refactorings
+* [17](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/17): Use faster container based Travis CI
+* [16](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/16): Allow audio/video sync to be configured, default to off
+* [15](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/15): Use resampler if available
+* [14](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/14): bump macosx-version-min to 10.6 for SDL2.0.5.
+  Allows for compilation on MacOS 10.12 Sierra using packages from Homebrew (samplerate speexdsp nasm and the sdl2 packages).
+* [13](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/13): Use Ubuntu Trusty as base system for Travis CI
+* [12](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/12): Added x64 configuration to VisualStudio2013 project file
+* [11](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/11): Remove unnecessary OpenBSD warning.
+* [10](https://github.com/mupen64plus/mupen64plus-audio-sdl/pull/10): bug workaround (volume does not follow system volume on jolla phone)
+
 
 Mupen64Plus-audio-sdl - v2.5 - April 26, 2015
 ---------------------------------------------

@@ -45,7 +45,7 @@
 #include "m64p_types.h"
 
 /* version info */
-#define SDL_AUDIO_PLUGIN_VERSION 0x020509
+#define SDL_AUDIO_PLUGIN_VERSION 0x020600
 #define AUDIO_PLUGIN_API_VERSION 0x020000
 #define CONFIG_API_VERSION       0x020100
 #define CONFIG_PARAM_VERSION     1.00
