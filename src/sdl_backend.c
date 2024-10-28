@@ -37,22 +37,6 @@
 #define N64_SAMPLE_BYTES 4
 #define SDL_SAMPLE_BYTES 4
 
-/* For SDL < 1.3 */
-#if !SDL_VERSION_ATLEAST(1,3,0)
-#define SDL_AUDIO_MASK_BITSIZE       (0xFF)
-#define SDL_AUDIO_MASK_DATATYPE      (1<<8)
-#define SDL_AUDIO_MASK_ENDIAN        (1<<12)
-#define SDL_AUDIO_MASK_SIGNED        (1<<15)
-#define SDL_AUDIO_BITSIZE(x)         (x & SDL_AUDIO_MASK_BITSIZE)
-#define SDL_AUDIO_ISFLOAT(x)         (x & SDL_AUDIO_MASK_DATATYPE)
-#define SDL_AUDIO_ISBIGENDIAN(x)     (x & SDL_AUDIO_MASK_ENDIAN)
-#define SDL_AUDIO_ISSIGNED(x)        (x & SDL_AUDIO_MASK_SIGNED)
-#define SDL_AUDIO_ISINT(x)           (!SDL_AUDIO_ISFLOAT(x))
-#define SDL_AUDIO_ISLITTLEENDIAN(x)  (!SDL_AUDIO_ISBIGENDIAN(x))
-#define SDL_AUDIO_ISUNSIGNED(x)      (!SDL_AUDIO_ISSIGNED(x))
-#endif
-
-#if SDL_VERSION_ATLEAST(2,0,0)
 #define SDL_LockAudio() SDL_LockAudioDevice(sdl_backend->device)
 #define SDL_UnlockAudio() SDL_UnlockAudioDevice(sdl_backend->device)
 #define SDL_PauseAudio(A) SDL_PauseAudioDevice(sdl_backend->device, A)
@@ -61,10 +45,6 @@
 struct sdl_backend
 {
     SDL_AudioDeviceID device;
-#else
-struct sdl_backend
-{
-#endif
     m64p_handle config;
 
     struct circular_buffer primary_buffer;

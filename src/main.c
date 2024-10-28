@@ -76,9 +76,7 @@
    They tend to rely on a default frequency, apparently, never the same one ;)*/
 #define DEFAULT_FREQUENCY 33600
 
-#if SDL_VERSION_ATLEAST(2,0,0)
 #define SDL_MixAudio(A, B, C, D) SDL_MixAudioFormat(A, B, AUDIO_S16SYS, C, D)
-#endif
 
 /* local variables */
 static void (*l_DebugCallback)(void *, int, const char *) = NULL;
