@@ -26,6 +26,7 @@
 #include <SDL_audio.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <string.h>
 
 #include "main.h"
 #include "osal_dynamiclib.h"
