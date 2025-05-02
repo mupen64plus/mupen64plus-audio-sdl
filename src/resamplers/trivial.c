@@ -35,9 +35,9 @@ static void trivial_release(void* resampler)
     /* nothing to do */
 }
 
-static size_t trivial_resample(void* resampler,
-                               const void* src, size_t src_size, unsigned int src_freq,
-                               void* dst, size_t dst_size, unsigned int dst_freq)
+static void trivial_resample(void* resampler,
+                             const void* src, size_t src_size, unsigned int src_freq, size_t* consumed,
+                             void* dst, size_t dst_size, unsigned int dst_freq, size_t* produced)
 {
     enum { BYTES_PER_SAMPLE = 4 };
     size_t i;
@@ -71,7 +71,8 @@ static size_t trivial_resample(void* resampler,
         }
     }
 
-    return j * 4;
+    *consumed = j * 4;
+    *produced = i * 4;
 }
 
 

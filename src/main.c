@@ -380,27 +380,23 @@ EXPORT void CALL SetSpeedFactor(int percentage)
     sdl_set_speed_factor(l_sdl_backend, percentage);
 }
 
-size_t ResampleAndMix(void* resampler, const struct resampler_interface* iresampler,
-        void* mix_buffer,
-        const void* src, size_t src_size, unsigned int src_freq,
-        void* dst, size_t dst_size, unsigned int dst_freq)
+void ResampleAndMix(void* resampler, const struct resampler_interface* iresampler,
+                    void* mix_buffer,
+                    const void* src, size_t src_size, unsigned int src_freq, size_t* consumed,
+                    void* dst, size_t dst_size, unsigned int dst_freq, size_t* produced)
 {
-    size_t consumed;
-
 #if defined(HAS_OSS_SUPPORT)
     if (VolumeControlType == VOLUME_TYPE_OSS)
     {
-        consumed = iresampler->resample(resampler, src, src_size, src_freq, dst, dst_size, dst_freq);
+        iresampler->resample(resampler, src, src_size, src_freq, consumed, dst, dst_size, dst_freq, produced);
     }
     else
 #endif
     {
-        consumed = iresampler->resample(resampler, src, src_size, src_freq, mix_buffer, dst_size, dst_freq);
+        iresampler->resample(resampler, src, src_size, src_freq, consumed, mix_buffer, dst_size, dst_freq, produced);
         memset(dst, 0, dst_size);
         SDL_MixAudio(dst, mix_buffer, dst_size, VolSDL);
     }
-
-    return consumed;
 }
 
 void SetPlaybackVolume(void)
