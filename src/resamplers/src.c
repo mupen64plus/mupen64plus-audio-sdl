@@ -133,9 +133,9 @@ static void src_release(void* resampler)
     }
 }
 
-static size_t src_resample(void* resampler,
-                           const void* src, size_t src_size, unsigned int src_freq,
-                           void* dst, size_t dst_size, unsigned int dst_freq)
+static void src_resample(void* resampler,
+                         const void* src, size_t src_size, unsigned int src_freq, size_t* consumed,
+                         void* dst, size_t dst_size, unsigned int dst_freq, size_t* produced)
 {
     struct src_resampler* src_resampler = (struct src_resampler*)resampler;
 
@@ -176,19 +176,16 @@ static size_t src_resample(void* resampler,
     if (error)
     {
         DebugMessage(M64MSG_ERROR, "SRC error: %s", src_strerror(error));
+        *consumed = src_size;
+        *produced = dst_size;
         memset(dst, 0, dst_size);
-        return src_size;
-    }
-
-    if (dst_size != src_data.output_frames_gen*4) {
-        DebugMessage(M64MSG_WARNING, "dst_size = %u != output_frames_gen*4 = %u",
-                (uint32_t) dst_size, (uint32_t) src_data.output_frames_gen*4);
+        return;
     }
 
     src_float_to_short_array(src_resampler->fbuffers[1].data, (short*)dst, src_data.output_frames_gen*2);
-    memset((char*)dst + src_data.output_frames_gen*4, 0, dst_size - src_data.output_frames_gen*4);
 
-    return src_data.input_frames_used * 4;
+    *consumed = src_data.input_frames_used * 4;
+    *produced = src_data.output_frames_gen * 4;
 }
 
 
