@@ -23,6 +23,7 @@
 #include <SDL_audio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 #include "circular_buffer.h"
 #include "main.h"
@@ -98,43 +99,50 @@ static void my_audio_callback(void* userdata, unsigned char* stream, int len)
 
     unsigned int newsamplerate = sdl_backend->output_frequency * 100 / sdl_backend->speed_factor;
     unsigned int oldsamplerate = sdl_backend->input_frequency;
-    size_t needed = (len * oldsamplerate) / newsamplerate;
-    size_t available;
-    size_t consumed;
+    size_t available, extra;
+    size_t consumed = 0;
+    size_t produced = 0;
+    size_t consumed2 = 0;
+    size_t produced2 = 0;
 
-    const void* src = cbuff_tail(&sdl_backend->primary_buffer, &available);
-    if ((available > 0) && (available >= needed))
-    {
-        consumed = ResampleAndMix(sdl_backend->resampler, sdl_backend->iresampler,
+    const void* src = cbuff_tail(&sdl_backend->primary_buffer, &available, &extra);
+
+    assert((len & 0x3) == 0 && (available & 0x3) == 0 && (extra & 0x3) == 0);
+
+    if ((available + extra) > 0) {
+        ResampleAndMix(sdl_backend->resampler, sdl_backend->iresampler,
+            sdl_backend->mix_buffer,
+            src, available, oldsamplerate, &consumed,
+            stream, len, newsamplerate, &produced);
+
+        if (produced < len) {
+            ResampleAndMix(sdl_backend->resampler, sdl_backend->iresampler,
                 sdl_backend->mix_buffer,
-                src, available, oldsamplerate,
-                stream, len, newsamplerate);
+                (unsigned char*)sdl_backend->primary_buffer.data, extra, oldsamplerate, &consumed2,
+                stream + produced, len - produced, newsamplerate, &produced2);
+        }
 
-        consume_cbuff_data(&sdl_backend->primary_buffer, consumed);
+        assert((consumed & 0x3) == 0 && (consumed2 & 0x3) == 0 && (produced & 0x3) == 0 && (produced2 & 0x3) == 0);
+        consume_cbuff_data(&sdl_backend->primary_buffer, consumed + consumed2);
     }
-    else
-    {
+
+    if (produced + produced2 < len) {
         ++sdl_backend->underrun_count;
-        memset(stream, 0, len);
+        memset(stream + produced + produced2, 0, len - (produced + produced2));
     }
 }
 
 static size_t new_primary_buffer_size(const struct sdl_backend* sdl_backend)
 {
-    return N64_SAMPLE_BYTES * ((uint64_t)sdl_backend->primary_buffer_size * sdl_backend->input_frequency * sdl_backend->speed_factor) /
-        (sdl_backend->output_frequency * 100);
+    return N64_SAMPLE_BYTES * (((uint64_t)sdl_backend->primary_buffer_size * sdl_backend->input_frequency * sdl_backend->speed_factor) /
+        (sdl_backend->output_frequency * 100));
 }
 
 static void resize_primary_buffer(struct sdl_backend* sdl_backend, size_t new_size)
 {
-    /* only grows the buffer */
-    if (new_size > sdl_backend->primary_buffer.size) {
-        SDL_LockAudio();
-        sdl_backend->primary_buffer.data = realloc(sdl_backend->primary_buffer.data, new_size);
-        memset((unsigned char*)sdl_backend->primary_buffer.data + sdl_backend->primary_buffer.size, 0, new_size - sdl_backend->primary_buffer.size);
-        sdl_backend->primary_buffer.size = new_size;
-        SDL_UnlockAudio();
-    }
+    SDL_LockAudio();
+    grow_cbuff(&sdl_backend->primary_buffer, new_size);
+    SDL_UnlockAudio();
 }
 
 static unsigned int select_output_frequency(unsigned int input_frequency)
@@ -339,7 +347,7 @@ void sdl_set_frequency(struct sdl_backend* sdl_backend, unsigned int frequency)
 
 void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t size)
 {
-    size_t available;
+    size_t available, extra;
 
     if (sdl_backend->error != 0)
         return;
@@ -352,8 +360,11 @@ void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t s
 
     /* We need to lock audio before accessing cbuff */
     SDL_LockAudio();
-    unsigned char* dst = cbuff_head(&sdl_backend->primary_buffer, &available);
-    if (size <= available)
+    unsigned char* dst = cbuff_head(&sdl_backend->primary_buffer, &available, &extra);
+
+    assert((size & 0x3) == 0 && (available & 0x3) == 0 && (extra & 0x3) == 0);
+
+    if (size <= (available+extra))
     {
         /* Confusing logic but, for LittleEndian host using memcpy will result in swapped channels,
          * whereas the other branch will result in non-swapped channels.
@@ -367,14 +378,35 @@ void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t s
          * memcpy path results in the non-swapped channels outcome.
          */
         if (sdl_backend->swap_channels ^ (SDL_BYTEORDER == SDL_BIG_ENDIAN)) {
-            memcpy(dst, src, size);
+            if (size <= available) {
+                memcpy(dst, src, size);
+            }
+            else {
+                memcpy(dst, src, available);
+                memcpy(sdl_backend->primary_buffer.data, (const unsigned char*)src + available, size - available);
+            }
         }
         else {
             size_t i;
-            for (i = 0 ; i < size ; i += 4 )
-            {
-                memcpy(dst + i + 0, (const unsigned char*)src + i + 2, 2); /* Left */
-                memcpy(dst + i + 2, (const unsigned char*)src + i + 0, 2); /* Right */
+
+            if (size <= available) {
+                for (i = 0 ; i < size ; i += 4)
+                {
+                    memcpy(dst + i + 0, (const unsigned char*)src + i + 2, 2); /* Left */
+                    memcpy(dst + i + 2, (const unsigned char*)src + i + 0, 2); /* Right */
+                }
+            }
+            else {
+                for (i = 0 ; i < available ; i += 4)
+                {
+                    memcpy(dst + i + 0, (const unsigned char*)src + i + 2, 2); /* Left */
+                    memcpy(dst + i + 2, (const unsigned char*)src + i + 0, 2); /* Right */
+                }
+                for (i = 0; i < (size - available); i += 4)
+                {
+                    memcpy((unsigned char*)sdl_backend->primary_buffer.data + i + 0, (const unsigned char*)src + available + i + 2, 2); /* Left */
+                    memcpy((unsigned char*)sdl_backend->primary_buffer.data + i + 2, (const unsigned char*)src + available + i + 0, 2); /* Right */
+                }
             }
         }
 
@@ -382,23 +414,23 @@ void sdl_push_samples(struct sdl_backend* sdl_backend, const void* src, size_t s
     }
     SDL_UnlockAudio();
 
-    if (size > available)
+    if (size > (available+extra))
     {
-        DebugMessage(M64MSG_WARNING, "sdl_push_samples: pushing %zu bytes, but only %zu available !", size, available);
+        DebugMessage(M64MSG_WARNING, "sdl_push_samples: pushing %zu bytes, but only %zu available !", size, available+extra);
     }
 }
 
 
 static size_t estimate_level_at_next_audio_cb(struct sdl_backend* sdl_backend)
 {
-    size_t available;
+    size_t available, extra;
     unsigned int now = SDL_GetTicks();
 
     /* NOTE: given that we only access "available" counter from cbuff, we don't need to protect it's access with LockAudio/UnlockAudio */
-    cbuff_tail(&sdl_backend->primary_buffer, &available);
+    cbuff_tail(&sdl_backend->primary_buffer, &available, &extra);
 
     /* Start by calculating the current Primary buffer fullness in terms of output samples */
-    size_t expected_level = (size_t)(((int64_t)(available/N64_SAMPLE_BYTES) * sdl_backend->output_frequency * 100) / (sdl_backend->input_frequency * sdl_backend->speed_factor));
+    size_t expected_level = (size_t)(((int64_t)((available+extra)/N64_SAMPLE_BYTES) * sdl_backend->output_frequency * 100) / (sdl_backend->input_frequency * sdl_backend->speed_factor));
 
     /* Next, extrapolate to the buffer level at the expected time of the next audio callback, assuming that the
        buffer is filled at the same rate as the output frequency */

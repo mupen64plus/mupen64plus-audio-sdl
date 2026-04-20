@@ -32,9 +32,9 @@ struct resampler_interface
 
     void (*release)(void* resampler);
 
-    size_t (*resample)(void* resampler,
-                       const void* src, size_t src_size, unsigned int src_freq,
-                       void* dst, size_t dst_size, unsigned int dst_freq);
+    void (*resample)(void* resampler,
+                     const void* src, size_t src_size, unsigned int src_freq, size_t* consumed,
+                     void* dst, size_t dst_size, unsigned int dst_freq, size_t* produced);
 };
 
 const struct resampler_interface* get_iresampler(const char* resampler_id, void** resampler);
