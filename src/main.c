@@ -31,13 +31,7 @@
 #include "main.h"
 #include "osal_dynamiclib.h"
 #include "sdl_backend.h"
-#include "volume.h"
 #include "resamplers/resamplers.h"
-
-#ifdef USE_AUDIORESOURCE
-#include <audioresource.h>
-#include <glib.h>
-#endif
 
 #define M64P_PLUGIN_PROTOTYPES 1
 #include "m64p_common.h"
@@ -84,10 +78,6 @@ static void (*l_DebugCallback)(void *, int, const char *) = NULL;
 static void *l_DebugCallContext = NULL;
 static int l_PluginInit = 0;
 static m64p_handle l_ConfigAudio;
-#ifdef USE_AUDIORESOURCE
-static audioresource_t *l_audioresource = NULL;
-static int l_audioresource_acquired = 0;
-#endif
 
 static struct sdl_backend* l_sdl_backend = NULL;
 
@@ -102,9 +92,6 @@ static int VolDelta = 5;
 static int VolSDL = SDL_MIX_MAXVOLUME;
 // Muted or not
 static int VolIsMuted = 0;
-//which type of volume control to use
-static int VolumeControlType = VOLUME_TYPE_SDL;
-
 /* definitions of pointers to Core config functions */
 ptr_ConfigOpenSection      ConfigOpenSection = NULL;
 ptr_ConfigDeleteSection    ConfigDeleteSection = NULL;
@@ -137,13 +124,6 @@ void DebugMessage(int level, const char *message, ...)
   va_end(args);
 }
 
-#ifdef USE_AUDIORESOURCE
-void on_audioresource_acquired(audioresource_t *audioresource, bool acquired, void *user_data)
-{
-    DebugMessage(M64MSG_VERBOSE, "audioresource acquired: %d", acquired);
-    l_audioresource_acquired = acquired;
-}
-#endif
 
 /* Mupen64Plus plugin functions */
 EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Context,
@@ -232,24 +212,9 @@ EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Con
     ConfigSetDefaultInt(l_ConfigAudio, "PRIMARY_BUFFER_TARGET", PRIMARY_BUFFER_TARGET, "Fullness level target for Primary audio buffer, in equivalent output samples. This value must be larger than the SECONDARY_BUFFER_SIZE. Decreasing this value will reduce audio latency but requires a faster PC to avoid choppiness. Increasing this will increase audio latency but reduce the chance of drop-outs.");
     ConfigSetDefaultInt(l_ConfigAudio, "SECONDARY_BUFFER_SIZE", SECONDARY_BUFFER_SIZE, "Size of secondary buffer in output samples. This is SDL's hardware buffer. The SDL documentation states that this should be a power of two between 512 and 8192.");
     ConfigSetDefaultString(l_ConfigAudio, "RESAMPLE",           DEFAULT_RESAMPLER,             "Audio resampling algorithm. src-sinc-best-quality, src-sinc-medium-quality, src-sinc-fastest, src-zero-order-hold, src-linear, speex-fixed-{10-0}, trivial");
-    ConfigSetDefaultInt(l_ConfigAudio, "VOLUME_CONTROL_TYPE",   VOLUME_TYPE_SDL,       "Volume control type: 1 = SDL (only affects Mupen64Plus output)  2 = OSS mixer (adjusts master PC volume)");
     ConfigSetDefaultInt(l_ConfigAudio, "VOLUME_ADJUST",         5,                     "Percentage change each time the volume is increased or decreased");
-    ConfigSetDefaultInt(l_ConfigAudio, "VOLUME_DEFAULT",        80,                    "Default volume when a game is started.  Only used if VOLUME_CONTROL_TYPE is 1");
+    ConfigSetDefaultInt(l_ConfigAudio, "VOLUME_DEFAULT",        80,                    "Default volume when a game is started");
     ConfigSetDefaultBool(l_ConfigAudio, "AUDIO_SYNC",           1,                     "Synchronize Video/Audio");
-
-#ifdef USE_AUDIORESOURCE
-    setenv("PULSE_PROP_media.role", "x-maemo", 1);
-
-    l_audioresource = audioresource_init(AUDIO_RESOURCE_GAME, on_audioresource_acquired, NULL);
-
-    audioresource_acquire(l_audioresource);
-
-    while(!l_audioresource_acquired)
-    {
-        DebugMessage(M64MSG_INFO, "Waiting for audioresource...");
-        g_main_context_iteration(NULL, false);
-    }
-#endif
 
     l_PluginInit = 1;
     return M64ERR_SUCCESS;
@@ -263,11 +228,6 @@ EXPORT m64p_error CALL PluginShutdown(void)
     /* reset some local variables */
     l_DebugCallback = NULL;
     l_DebugCallContext = NULL;
-
-#ifdef USE_AUDIORESOURCE
-    audioresource_release(l_audioresource);
-    audioresource_free(l_audioresource);
-#endif
 
     l_PluginInit = 0;
     return M64ERR_SUCCESS;
@@ -351,7 +311,6 @@ EXPORT int CALL RomOpen(void)
         return 0;
 
     VolDelta = ConfigGetParamInt(l_ConfigAudio, "VOLUME_ADJUST");
-    VolumeControlType = ConfigGetParamInt(l_ConfigAudio, "VOLUME_CONTROL_TYPE");
     VolPercent = ConfigGetParamInt(l_ConfigAudio, "VOLUME_DEFAULT");
 
     l_sdl_backend = init_sdl_backend_from_config(l_ConfigAudio);
@@ -387,48 +346,22 @@ size_t ResampleAndMix(void* resampler, const struct resampler_interface* iresamp
 {
     size_t consumed;
 
-#if defined(HAS_OSS_SUPPORT)
-    if (VolumeControlType == VOLUME_TYPE_OSS)
-    {
-        consumed = iresampler->resample(resampler, src, src_size, src_freq, dst, dst_size, dst_freq);
-    }
-    else
-#endif
-    {
-        consumed = iresampler->resample(resampler, src, src_size, src_freq, mix_buffer, dst_size, dst_freq);
-        memset(dst, 0, dst_size);
-        SDL_MixAudio(dst, mix_buffer, dst_size, VolSDL);
-    }
+    consumed = iresampler->resample(resampler, src, src_size, src_freq, mix_buffer, dst_size, dst_freq);
+    memset(dst, 0, dst_size);
+    SDL_MixAudio(dst, mix_buffer, dst_size, VolSDL);
 
     return consumed;
 }
 
 void SetPlaybackVolume(void)
 {
-#if defined(HAS_OSS_SUPPORT)
-    if (VolumeControlType == VOLUME_TYPE_OSS)
-    {
-        VolPercent = volGet();
-    }
-    else
-#endif
-    {
-        VolSDL = SDL_MIX_MAXVOLUME * VolPercent / 100;
-    }
+    VolSDL = SDL_MIX_MAXVOLUME * VolPercent / 100;
 }
 
 
 // Returns the most recent ummuted volume level.
 static int VolumeGetUnmutedLevel(void)
 {
-#if defined(HAS_OSS_SUPPORT)
-    // reload volume if we're using OSS
-    if (!VolIsMuted && VolumeControlType == VOLUME_TYPE_OSS)
-    {
-        return volGet();
-    }
-#endif
-
     return VolPercent;
 }
 
@@ -437,17 +370,7 @@ static void VolumeCommit(void)
 {
     int levelToCommit = VolIsMuted ? 0 : VolPercent;
 
-#if defined(HAS_OSS_SUPPORT)
-    if (VolumeControlType == VOLUME_TYPE_OSS)
-    {
-        //OSS mixer volume
-        volSet(levelToCommit);
-    }
-    else
-#endif
-    {
-        VolSDL = SDL_MIX_MAXVOLUME * levelToCommit / 100;
-    }
+    VolSDL = SDL_MIX_MAXVOLUME * levelToCommit / 100;
 }
 
 EXPORT void CALL VolumeMute(void)
