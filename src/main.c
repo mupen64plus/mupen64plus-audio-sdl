@@ -22,8 +22,14 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#ifdef USE_SDL3
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_audio.h>
+#else
 #include <SDL.h>
 #include <SDL_audio.h>
+#endif
+
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -88,6 +94,9 @@ static AUDIO_INFO AudioInfo;
 static int VolPercent = 80;
 // how much percent to increment/decrement volume by
 static int VolDelta = 5;
+#ifdef USE_SDL3
+#define SDL_MIX_MAXVOLUME 100
+#endif
 // the actual volume passed into SDL, range of 0..SDL_MIX_MAXVOLUME
 static int VolSDL = SDL_MIX_MAXVOLUME;
 // Muted or not
@@ -124,6 +133,7 @@ void DebugMessage(int level, const char *message, ...)
   va_end(args);
 }
 
+static void VolumeCommit(void);
 
 /* Mupen64Plus plugin functions */
 EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Context,
@@ -208,9 +218,11 @@ EXPORT m64p_error CALL PluginStartup(m64p_dynlib_handle CoreLibHandle, void *Con
     ConfigSetDefaultFloat(l_ConfigAudio, "Version",             CONFIG_PARAM_VERSION,  "Mupen64Plus SDL Audio Plugin config parameter version number");
     ConfigSetDefaultInt(l_ConfigAudio, "DEFAULT_FREQUENCY",     DEFAULT_FREQUENCY,     "Frequency which is used if rom doesn't want to change it");
     ConfigSetDefaultBool(l_ConfigAudio, "SWAP_CHANNELS",        0,                     "Swaps left and right channels");
+#ifndef USE_SDL3
     ConfigSetDefaultInt(l_ConfigAudio, "PRIMARY_BUFFER_SIZE",   PRIMARY_BUFFER_SIZE,   "Size of primary buffer in output samples. This is where audio is loaded after it's extracted from n64's memory.");
     ConfigSetDefaultInt(l_ConfigAudio, "PRIMARY_BUFFER_TARGET", PRIMARY_BUFFER_TARGET, "Fullness level target for Primary audio buffer, in equivalent output samples. This value must be larger than the SECONDARY_BUFFER_SIZE. Decreasing this value will reduce audio latency but requires a faster PC to avoid choppiness. Increasing this will increase audio latency but reduce the chance of drop-outs.");
     ConfigSetDefaultInt(l_ConfigAudio, "SECONDARY_BUFFER_SIZE", SECONDARY_BUFFER_SIZE, "Size of secondary buffer in output samples. This is SDL's hardware buffer. The SDL documentation states that this should be a power of two between 512 and 8192.");
+#endif
     ConfigSetDefaultString(l_ConfigAudio, "RESAMPLE",           DEFAULT_RESAMPLER,             "Audio resampling algorithm. src-sinc-best-quality, src-sinc-medium-quality, src-sinc-fastest, src-zero-order-hold, src-linear, speex-fixed-{10-0}, trivial");
     ConfigSetDefaultInt(l_ConfigAudio, "VOLUME_ADJUST",         5,                     "Percentage change each time the volume is increased or decreased");
     ConfigSetDefaultInt(l_ConfigAudio, "VOLUME_DEFAULT",        80,                    "Default volume when a game is started");
@@ -283,6 +295,7 @@ EXPORT void CALL AiDacrateChanged(int SystemType)
     unsigned int frequency = dacrate2freq(vi_clock_from_system_type(SystemType), *AudioInfo.AI_DACRATE_REG);
 
     sdl_set_frequency(l_sdl_backend, frequency);
+    VolumeCommit();
 }
 
 EXPORT void CALL AiLenChanged(void)
@@ -314,6 +327,7 @@ EXPORT int CALL RomOpen(void)
     VolPercent = ConfigGetParamInt(l_ConfigAudio, "VOLUME_DEFAULT");
 
     l_sdl_backend = init_sdl_backend_from_config(l_ConfigAudio);
+    VolumeCommit();
 
     return 1;
 }
@@ -339,6 +353,7 @@ EXPORT void CALL SetSpeedFactor(int percentage)
     sdl_set_speed_factor(l_sdl_backend, percentage);
 }
 
+#ifndef USE_SDL3
 size_t ResampleAndMix(void* resampler, const struct resampler_interface* iresampler,
         void* mix_buffer,
         const void* src, size_t src_size, unsigned int src_freq,
@@ -352,6 +367,7 @@ size_t ResampleAndMix(void* resampler, const struct resampler_interface* iresamp
 
     return consumed;
 }
+#endif
 
 void SetPlaybackVolume(void)
 {
@@ -371,6 +387,7 @@ static void VolumeCommit(void)
     int levelToCommit = VolIsMuted ? 0 : VolPercent;
 
     VolSDL = SDL_MIX_MAXVOLUME * levelToCommit / 100;
+    sdl_apply_volume(l_sdl_backend, VolSDL);
 }
 
 EXPORT void CALL VolumeMute(void)

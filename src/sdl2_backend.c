@@ -456,3 +456,7 @@ void sdl_set_speed_factor(struct sdl_backend* sdl_backend, unsigned int speed_fa
     /* we need a different size primary buffer to store the N64 samples when the speed changes */
     resize_primary_buffer(sdl_backend, new_primary_buffer_size(sdl_backend));
 }
+
+void sdl_apply_volume(struct sdl_backend* sdl_backend, int volume)
+{
+}

@@ -38,4 +38,6 @@ void sdl_synchronize_audio(struct sdl_backend* sdl_backend);
 
 void sdl_set_speed_factor(struct sdl_backend* sdl_backend, unsigned int speed_factor);
 
+void sdl_apply_volume(struct sdl_backend* sdl_backend, int volume);
+
 #endif
