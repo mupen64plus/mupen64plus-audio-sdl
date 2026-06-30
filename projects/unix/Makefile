@@ -159,11 +159,19 @@ endif
 
 # test for presence of SDL
 ifeq ($(origin SDL_CFLAGS) $(origin SDL_LDLIBS), undefined undefined)
-  ifeq ($(shell $(PKG_CONFIG) --modversion sdl2 2>/dev/null),)
-    $(error No SDL2 development libraries found!)
+  ifeq ($(shell $(PKG_CONFIG) --modversion sdl3 2>/dev/null),)
+    ifeq ($(shell $(PKG_CONFIG) --modversion sdl2 2>/dev/null),)
+      $(error No SDL3 or SDL2 development libraries found!)
+    endif
+    USE_SDL3 := 0
+    SDL_CFLAGS += $(shell $(PKG_CONFIG) --cflags sdl2)
+    SDL_LDLIBS += $(shell $(PKG_CONFIG) --libs sdl2)
+  else
+    USE_SDL3 := 1
+    SDL_CFLAGS += -DUSE_SDL3
+    SDL_CFLAGS += $(shell $(PKG_CONFIG) --cflags sdl3)
+    SDL_LDLIBS += $(shell $(PKG_CONFIG) --libs sdl3)
   endif
-  SDL_CFLAGS += $(shell $(PKG_CONFIG) --cflags sdl2)
-  SDL_LDLIBS += $(shell $(PKG_CONFIG) --libs sdl2)
 endif
 CFLAGS += $(SDL_CFLAGS)
 LDLIBS += $(SDL_LDLIBS)
@@ -268,7 +276,6 @@ endif
 SOURCE = \
 	$(SRCDIR)/circular_buffer.c \
 	$(SRCDIR)/main.c \
-	$(SRCDIR)/sdl_backend.c \
 	$(SRCDIR)/resamplers/resamplers.c \
 	$(SRCDIR)/resamplers/trivial.c
 
@@ -283,6 +290,11 @@ ifneq ($(NO_SPEEX), 1)
 endif
 ifneq ($(NO_SRC), 1)
   SOURCE += $(SRCDIR)/resamplers/src.c
+endif
+ifeq ($(USE_SDL3), 1)
+  SOURCE += $(SRCDIR)/sdl3_backend.c
+else
+  SOURCE += $(SRCDIR)/sdl2_backend.c
 endif
 
 # generate a list of object files build, make a temporary directory for them
