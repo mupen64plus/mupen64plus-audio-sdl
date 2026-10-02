@@ -98,7 +98,7 @@ static void my_audio_callback(void* userdata, unsigned char* stream, int len)
 
     unsigned int newsamplerate = sdl_backend->output_frequency * 100 / sdl_backend->speed_factor;
     unsigned int oldsamplerate = sdl_backend->input_frequency;
-    size_t needed = (len * oldsamplerate) / newsamplerate;
+    uint64_t needed = ((uint64_t)len * oldsamplerate) / newsamplerate;
     size_t available;
     size_t consumed;
 
@@ -332,6 +332,7 @@ void sdl_set_frequency(struct sdl_backend* sdl_backend, unsigned int frequency)
     if (sdl_backend->error != 0)
         return;
 
+    SDL_PauseAudio(1);
     sdl_backend->input_frequency = frequency;
     sdl_init_audio_device(sdl_backend);
 }
