@@ -84,11 +84,10 @@ jobs:
             mingw-w64-${{ matrix.cross }}-toolchain
             mingw-w64-${{ matrix.cross }}-ntldd
             mingw-w64-${{ matrix.cross }}-SDL2
-            mingw-w64-${{ matrix.cross }}-speexdsp
       - name: Get and install special-case dependencies
         if: matrix.cross != 'i686'
         run: |
-          pacman --noconfirm --needed -S mingw-w64-${{ matrix.cross }}-libsamplerate
+          pacman --noconfirm --needed -S mingw-w64-${{ matrix.cross }}-libsamplerate mingw-w64-${{ matrix.cross }}-speexdsp
       - name: Build and related stuff, backup binaries
         run: |
           git clone --depth 1 https://github.com/mupen64plus/mupen64plus-core.git ../mupen64plus-core
